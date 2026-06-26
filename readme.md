@@ -15,6 +15,7 @@ nickname=bot_nickname
 channel=channels,to_watch,over
 chatbots=hardcoded,list_of,chatbots,to_prevent,self_feading,commands
 ```
+(Currently channel supports only a single channel)
 - Run `./run` and read logs for some instructions.
 
 ## Build
