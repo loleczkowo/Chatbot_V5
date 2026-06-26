@@ -1,0 +1,6 @@
+*.o
+twitch_oauths.json
+run
+config
+client_secret
+commands/*.txt
