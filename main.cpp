@@ -164,8 +164,8 @@ int main()
     std::optional<TwitchChat> twitch_chat;
     if (bot_oauth == nullptr) {
         std::cerr << "Failed to get bot's oauth token. Add it and restart the program";
-    } else if (false) {
-        ; // TODO check if has scopes
+    } else if (!bot_oauth->check_scopes({"chat:read"})) {
+        std::cerr << "Missing `chat:read` from bot's oauth token. Re-auth the token and restart the program.";
     } else {
         chat_enabled = true;
         twitch_chat.emplace(*bot_oauth, client_id, client_secret, bot_nickname, channel);       

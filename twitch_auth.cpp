@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <fstream>
+#include <unordered_map>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -116,7 +117,7 @@ TwitchOAuth::TwitchOAuth(
     std::string token,
     std::string refresh_token,
     int64_t expires_at,
-    std::vector<std::string> scopes
+    std::unordered_set<std::string> scopes
 )
     : user_id_(std::move(user_id)),
       token_(std::move(token)),
@@ -200,7 +201,7 @@ void TwitchOAuth::load_json(const Json::Value& json) {
     const Json::Value& scope_json = json.isMember("scope") ? json["scope"]:json["scopes"];
     scopes_.clear();
     for (const Json::Value& scope : scope_json) {
-        scopes_.push_back(scope.asString());
+        scopes_.insert(scope.asString());
     }
     if (json.isMember("user_id")) {
         user_id_ = json["user_id"].asString();
@@ -209,9 +210,9 @@ void TwitchOAuth::load_json(const Json::Value& json) {
 
 std::string TwitchOAuth::save_json() const {
     std::string out_scopes = "[";
-    for (const std::string& scope : scopes_) {
-        out_scopes += json_escape(scope);
-        if (&scope != &scopes_.back()) {out_scopes+=",";}
+    for (std::unordered_set<std::string>::const_iterator it = scopes_.begin(); it != scopes_.end(); ++it) {
+        out_scopes += json_escape(*it);
+        if (std::next(it) != scopes_.end()) {out_scopes+=",";}
     }
     out_scopes += "]";
     return
@@ -224,6 +225,13 @@ std::string TwitchOAuth::save_json() const {
     "}";
 }
 
+bool TwitchOAuth::check_scopes(const std::unordered_set<std::string>& scopes) const {
+    for (const std::string& scope : scopes) {
+        std::unordered_set<std::string>::const_iterator found = scopes_.find(scope);
+        if (found == scopes.end()) {return false;}
+    }
+    return true;
+}
 std::string TwitchOAuth::user_id() const {return user_id_;}
 std::string TwitchOAuth::get_token() const {return token_;}
 

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -21,7 +22,7 @@ public:
         std::string token,
         std::string refresh_token,
         int64_t expires_at,
-        std::vector<std::string> scopes
+        std::unordered_set<std::string> scopes
     );
     TwitchOAuth(
         const Json::Value& json
@@ -30,7 +31,8 @@ public:
     TwitchOAuthError refresh(const std::string& client_id, const std::string& client_secret);
     std::string save_json() const;
     void load_json(const Json::Value& json);
-
+    
+    bool check_scopes(const std::unordered_set<std::string>& scopes) const;
     std::string user_id() const;
     std::string get_token() const;
 private:
@@ -38,9 +40,8 @@ private:
     std::string token_;
     std::string refresh_token_;
     int64_t expires_at_;
-    std::vector<std::string> scopes_;
+    std::unordered_set<std::string> scopes_;
 };
-
 
 class TwitchAuth {
 public:
