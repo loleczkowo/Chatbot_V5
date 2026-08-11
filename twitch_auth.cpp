@@ -332,11 +332,16 @@ const std::string& TwitchAuth::client_id() const
 void TwitchAuth::oauth_check() {
     bool updated = false;
     {
-
         std::lock_guard<std::mutex> lock(OAuths_mutex_);
         for (auto i_oauth = OAuths_.begin(); i_oauth != OAuths_.end();) {
             TwitchOAuth& oauth = i_oauth->second;
-            if (oauth.validate()) {
+            try { 	    
+	        if (oauth.validate()) {
+		    ++i_oauth;
+		    continue;
+	        }
+            } catch  (const std::runtime_error& error) {
+                std::cerr << "Failed to validate OAuth for " << oauth.user_id() << ": " << error.what() << std::endl;
                 ++i_oauth;
                 continue;
             }
