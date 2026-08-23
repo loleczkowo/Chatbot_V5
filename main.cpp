@@ -263,8 +263,9 @@ int main()
         }
 
         if (last_oauth_check+15*60 < std::time(nullptr)) {
-            std::cout << "OAuth check" << std::endl;
+            std::cout << "OAuth check ...";
             auth.oauth_check();
+            std::cout << " done!" << std::endl;
             last_oauth_check = std::time(nullptr);
         }
     }

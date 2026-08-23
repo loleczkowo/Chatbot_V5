@@ -365,7 +365,36 @@ void TwitchAuth::oauth_check() {
             }
         }
     }
-
+    if (updated) {save_oauth();}
+}
+void TwitchAuth::oauth_check(const std::string& user_id) {
+    bool updated = false;
+    {
+        std::lock_guard<std::mutex> lock(OAuths_mutex_);
+        auto i_oauth = OAuths_.find(user_id);
+        if (i_oauth == OAuths_.end()) {return;}
+        TwitchOAuth& oauth = i_oauth->second;
+        try { 	    
+	        if (oauth.validate()) {return;}
+        } catch  (const std::runtime_error& error) {
+            std::cerr << "Failed to validate OAuth for " << oauth.user_id() << ": " << error.what() << std::endl;
+            return;
+        }
+        std::cout << "Refreshing OAuth for " << oauth.user_id() << std::endl;
+        TwitchOAuth::TwitchOAuthError refresh_err = oauth.refresh(client_id_, client_secret_);
+        switch (refresh_err) {
+        case TwitchOAuth::TwitchOAuthError::Ok:
+            updated = true;
+            break;
+        case TwitchOAuth::TwitchOAuthError::ReauthRequired:
+            break;
+        case TwitchOAuth::TwitchOAuthError::Unknown:
+            OAuths_.erase(i_oauth);
+            updated = true;
+            std::cout << "Refresh failed, removing oauth" << std::endl;
+            break;
+        }
+    }
     if (updated) {save_oauth();}
 }
 

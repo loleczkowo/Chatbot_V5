@@ -58,6 +58,7 @@ public:
     bool refresh_token();
     bool validate_token();
     void oauth_check();
+    void oauth_check(const std::string& user_id);
     void load_oauth();
     void save_oauth() const;
 
