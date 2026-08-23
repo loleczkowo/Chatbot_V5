@@ -483,9 +483,17 @@ void TwitchAuth::oauth_server()
     }
     const std::string body = "Twitch OAuth complete. You can close this tab.";
     const std::string body_404 = "404! What are you doing here!?";
-    const std::string response_redirect =
+    const std::string body_error = "ERROR! something went wrong, please try again or contact the administator.";
+    const std::string response_redirect_done =
         "HTTP/1.1 303 See Other\r\n"
         "Location: /done\r\n"
+        "Cache-Control: no-store\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+    const std::string response_redirect_error =
+        "HTTP/1.1 303 See Other\r\n"
+        "Location: /error\r\n"
         "Cache-Control: no-store\r\n"
         "Content-Length: 0\r\n"
         "Connection: close\r\n"
@@ -506,6 +514,14 @@ void TwitchAuth::oauth_server()
         "Content-Length: " + std::to_string(body.size()) + "\r\n"
         "\r\n" +
         body;
+    const std::string response_error =
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Content-Type: text/plain\r\n"
+        "Cache-Control: no-store\r\n"
+        "Connection: close\r\n"
+        "Content-Length: " + std::to_string(body_error.size()) + "\r\n"
+        "\r\n" +
+        body_error;
 
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -521,12 +537,12 @@ void TwitchAuth::oauth_server()
     sizeof(address)) < 0) {
         close(server_fd);
         oauth_server_connected_.store(false);
-        throw std::runtime_error("Could not bind localhost port");
+        throw std::runtime_error("Could not bind port");
     }
     if (listen(server_fd, 1) < 0) {
         close(server_fd);
         oauth_server_connected_.store(false);
-        throw std::runtime_error("Could not listen on localhost port");
+        throw std::runtime_error("Could not listen on port");
     }
     int flags = fcntl(server_fd, F_GETFL, 0);
     fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
@@ -557,16 +573,26 @@ void TwitchAuth::oauth_server()
             close(client_fd);
             continue;
         }
+        if (path == "/error") {
+            send(client_fd, response_error.c_str(), response_error.size(), 0);
+            close(client_fd);
+            continue;
+        }
         if (path != "/callback") {
             send(client_fd, response_404.c_str(), response_404.size(), 0);
             close(client_fd);
             continue;
         }
         
-        send(client_fd, response_redirect.c_str(), response_redirect.size(), 0);
-        close(client_fd);
-        if (!error_query.empty()) {std::cerr<<"oauth2-serv-err; "<<error_query<<std::endl; continue;}
-        if (code.empty()) {std::cerr << "oauth2-serv-err; missing code" << std::endl; continue;}
+            
+        if (!error_query.empty()) {
+            send(client_fd, response_redirect_error.c_str(), response_redirect_error.size(), 0); close(client_fd);
+            std::cerr<<"oauth2-serv-err; "<<error_query<<std::endl; continue;
+        }
+        if (code.empty()) {
+            send(client_fd, response_redirect_error.c_str(), response_redirect_error.size(), 0); close(client_fd);
+            std::cerr << "oauth2-serv-err; missing code" << std::endl; continue;
+        }
         std::string body_tokenfetch =
             "client_id=" + url_encode(client_id_) +
             "&client_secret=" + url_encode(client_secret_) +
@@ -579,9 +605,11 @@ void TwitchAuth::oauth_server()
         ));
 
         if (!response_tokenfetch.isMember("access_token")) {
-            std::cerr << "oauth2-serv-err (nacct); " << response_tokenfetch << std::endl;
-            continue;
+            send(client_fd, response_redirect_error.c_str(), response_redirect_error.size(), 0); close(client_fd);
+            std::cerr << "oauth2-serv-err (nacct); " << response_tokenfetch << std::endl; continue;
         }
+        send(client_fd, response_redirect_done.c_str(), response_redirect_done.size(), 0);
+        close(client_fd);
         TwitchOAuth new_oauth(response_tokenfetch);
         if (new_oauth.validate()) {
             {
