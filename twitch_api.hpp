@@ -29,8 +29,8 @@ private:
     std::mutex curl_mutex_;
     std::unordered_map<std::string, std::string> ids_cache_;
     std::string json_escape(const std::string& unescaped);
-    Json::Value get(const std::string& link, const std::string& working_channel_id="", const std::unordered_set<std::string>& scopes={});
-    Json::Value post(const std::string& link, const std::string& body, const std::string& working_channel_id="", const std::unordered_set<std::string>& scopes={});
+    Json::Value get(const std::string& link, const std::string& working_channel_id="", const std::unordered_set<std::string>& scopes={}, const std::unordered_set<std::string>& bot_scopes={});
+    Json::Value post(const std::string& link, const std::string& body, const std::string& working_channel_id="", const std::unordered_set<std::string>& scopes={}, const std::unordered_set<std::string>& bot_scopes={});
     Json::Value raw_get(const std::string& link, const std::string& token, long& status_code);
     Json::Value raw_post(const std::string& link, const std::string& token, const std::string& body, long& status_code);
 };
