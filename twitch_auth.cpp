@@ -486,14 +486,14 @@ void TwitchAuth::oauth_server()
     const std::string body_error = "ERROR! something went wrong, please try again or contact the administator.";
     const std::string response_redirect_done =
         "HTTP/1.1 303 See Other\r\n"
-        "Location: /done\r\n"
+        "Location: ./done\r\n"
         "Cache-Control: no-store\r\n"
         "Content-Length: 0\r\n"
         "Connection: close\r\n"
         "\r\n";
     const std::string response_redirect_error =
         "HTTP/1.1 303 See Other\r\n"
-        "Location: /error\r\n"
+        "Location: ./error\r\n"
         "Cache-Control: no-store\r\n"
         "Content-Length: 0\r\n"
         "Connection: close\r\n"
