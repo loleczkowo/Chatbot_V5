@@ -117,6 +117,9 @@ int main()
 
     std::ifstream config_file("config");
     std::string bot_nickname;
+    std::string oauth_port_string;
+    int oauth_port;
+    std::string oauth_redirect;
     std::vector<std::string> channels;
     std::unordered_set<std::string> chatbots;
     while (std::getline(config_file, line)) {
@@ -125,6 +128,8 @@ int main()
         const std::string conf_name = line.substr(0, equal_pos);
         std::string conf_value = line.substr(equal_pos+1);
         if (conf_name=="nickname") {bot_nickname=conf_value;}
+        else if (conf_name=="oauth_port") {oauth_port_string=conf_value;}
+        else if (conf_name=="oauth_redirect") {oauth_link=conf_value;}
         else if (conf_name=="channels") {
             while (true) { 
                 const std::size_t listcut_ = conf_value.find(",");
@@ -146,6 +151,13 @@ int main()
     if (bot_nickname.empty()) {
         std::cerr << "Missing 'bot_nickname' in config file" << std::endl; missing = true;
     }
+    if (oauth_port_string.empty()) {
+        std::cerr << "Missing 'oauth_port' in config file" << std::endl; missing = true;
+    } else {
+        try {oauth_port = std::stoi(oauth_port_string); if (oauth_port<0 || oauth_port>65535) {std::cerr << "'oauth_port' is out of range for a port" << std::endl; missing=true;}}
+        catch (const std::invalid_argument&) {std::cerr << "Cannot convert 'oauth_port' to an number" << std::endl; missing=true;}
+        catch (const std::out_of_range&) {std::cerr << "Cannot convert 'oauth_port' to a number (Too large)" << std::endl; missing=true;}
+    }
     if (channels.empty()) {
         std::cout << "WARNING: no 'channels' have been given in the config file" << std::endl;
     }
@@ -164,7 +176,9 @@ int main()
 
     TwitchAuth auth(
         client_id,
-        client_secret
+        client_secret,
+        oauth_port,
+        oauth_redirect
     );
     std::cout << "loading&checking oauth" << std::endl;
     auth.load_oauth();

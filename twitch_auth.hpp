@@ -49,6 +49,7 @@ public:
         std::string client_id,
         std::string client_secret,
         int port = 5000,
+        std::string redirect_uri = "",
         std::string token_file = "twitch_oauths.json"
     );
 
@@ -72,7 +73,8 @@ public:
 private:
     std::string client_id_;
     std::string client_secret_;
-    int port_;
+    const int port_;
+    const std::string redirect_uri_;
     std::string token_file_;
     std::string token_;
     int64_t token_expires_at_;

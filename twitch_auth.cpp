@@ -239,11 +239,13 @@ TwitchAuth::TwitchAuth(
     std::string client_id,
     std::string client_secret,
     int port,
+    std::string redirect_uri,
     std::string token_file
 )
     : client_id_(std::move(client_id)),
       client_secret_(std::move(client_secret)),
       port_(port),
+      redirect_uri_(std::move(redirect_uri)),
       token_file_(std::move(token_file))
 {
 }
@@ -414,7 +416,13 @@ std::string TwitchAuth::oauth2_broadcasterauth() const {
            "&redirect_uri=" + url_encode(redirect_uri()) +
            "&response_type=code&scope=" + url_encode("channel:bot");
 }
-std::string TwitchAuth::redirect_uri() const {return "http://localhost:"+std::to_string(port_)+"/callback";}
+std::string TwitchAuth::redirect_uri() const {
+    if (!redirect_uri_.empty()) {
+        if (redirect_uri_.rfind("http", 0) == 0) {return redirect_uri_;}
+        return "http://"+redirect_uri_;
+    }
+    return "http://localhost:"+std::to_string(port_)+"/callback";
+}
 
 
 void TwitchAuth::stop_oauth2_server() {

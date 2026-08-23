@@ -12,10 +12,11 @@ Feel free to use any of the code here.
 - Create `config` with a shape of
 ```conf
 nickname=bot_nickname
+oauth_port=5000
+oauth_redirect=optional.website_redirect.com/comeback
 channels=channels,to_watch,over
 chatbots=hardcoded,list_of,chatbots,to_prevent,self_feading,commands
 ```
-(Currently channel supports only a single channel)
 - Run `./run` and read logs for some instructions.
 
 ## Build
