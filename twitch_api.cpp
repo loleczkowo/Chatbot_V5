@@ -155,7 +155,6 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
     TwitchOAuth* bot_oauth = nullptr;
     TwitchOAuth* working_channel_oauth = working_channel_id.empty() ? nullptr : auth_.get_oauth(working_channel_id);
     if (!scopes.empty() && (working_channel_oauth == nullptr || !working_channel_oauth->check_scopes(scopes))) {
-        std::cout << "wtf" << std::endl;
         // We do not have the needed channel oauth so we fallback to bot's user token (If we have one)
         bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
         if (bot_oauth == nullptr || !bot_oauth->check_scopes(bot_scopes)) {
