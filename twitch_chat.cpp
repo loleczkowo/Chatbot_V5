@@ -4,7 +4,9 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
+#include <openssl/ssl.h>
 
+#include <stdexcept>
 #include <vector>
 #include <iostream>
 #include <utility>
@@ -23,8 +25,10 @@ TwitchChat::TwitchChat(
       client_secret_(std::move(client_secret)),
       bot_nickname_(std::move(bot_nickname)),
       channels_(std::move(channels)),
-      ssl_context_(boost::asio::ssl::context::tlsv12_client)
+      ssl_context_(boost::asio::ssl::context::tls_client)
 {
+    ssl_context_.set_default_verify_paths();
+    ssl_context_.set_verify_mode(boost::asio::ssl::verify_peer);
 }
 
 
@@ -58,9 +62,14 @@ bool TwitchChat::connect()
 
 bool TwitchChat::raw_connect()
 {
+    const std::string host = "irc.chat.twitch.tv";
     boost::asio::ip::tcp::resolver resolver(io_context_);
-    auto endpoints = resolver.resolve("irc.chat.twitch.tv", "6697");
+    auto endpoints = resolver.resolve(host, "6697");
     boost::asio::connect(socket_->lowest_layer(), endpoints);
+    if (SSL_set_tlsext_host_name(socket_->native_handle(), host.c_str()) != 1) {
+        throw std::runtime_error("failed to set TLS SNI hostname");
+    }
+    socket_->set_verify_callback(boost::asio::ssl::host_name_verification(host));
     socket_->handshake(boost::asio::ssl::stream_base::client);
 
     send_raw("CAP REQ :twitch.tv/tags twitch.tv/commands\r\n");

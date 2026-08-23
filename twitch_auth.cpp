@@ -228,7 +228,7 @@ std::string TwitchOAuth::save_json() const {
 bool TwitchOAuth::check_scopes(const std::unordered_set<std::string>& scopes) const {
     for (const std::string& scope : scopes) {
         std::unordered_set<std::string>::const_iterator found = scopes_.find(scope);
-        if (found == scopes.end()) {return false;}
+        if (found == scopes_.end()) {return false;}
     }
     return true;
 }
