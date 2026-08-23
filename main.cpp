@@ -129,7 +129,7 @@ int main()
         std::string conf_value = line.substr(equal_pos+1);
         if (conf_name=="nickname") {bot_nickname=conf_value;}
         else if (conf_name=="oauth_port") {oauth_port_string=conf_value;}
-        else if (conf_name=="oauth_redirect") {oauth_link=conf_value;}
+        else if (conf_name=="oauth_redirect") {oauth_redirect=conf_value;}
         else if (conf_name=="channels") {
             while (true) { 
                 const std::size_t listcut_ = conf_value.find(",");

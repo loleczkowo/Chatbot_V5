@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -O0
+CXXFLAGS = -std=c++20 -Wall -Wextra -O0 -I/usr/include/jsoncpp
 LDFLAGS = -pthread -lssl -lcrypto -lcurl -ljsoncpp
 
 SRC = main.cpp twitch_chat.cpp twitch_auth.cpp twitch_api.cpp cmd_parser.cpp
