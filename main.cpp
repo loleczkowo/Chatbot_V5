@@ -8,6 +8,8 @@
 #include <string>
 #include <optional>
 #include <unordered_set>
+#include <unordered_map>
+#include <filesystem>
 
 
 void debug_on_msg(const TwitchMessage& message) {
@@ -26,10 +28,14 @@ void debug_on_msg(const TwitchMessage& message) {
 
 void chat_commands(
     const TwitchMessage& message, TwitchApi& api,
-    const Commands& commands,
+    const std::unordered_map<std::string, Commands>& channels_commands,
     const std::unordered_set<std::string>& chatbots
 )
 {
+    auto it = channels_commands.find(message.room_name);
+    if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
+    const Commands commands = it->second; 
+
     const std::size_t first_space_ = message.message.find(' ');
     std::string cmd_;
     if (first_space_ == std::string::npos) {cmd_=message.message;}
@@ -87,6 +93,7 @@ int main()
         return 1;
     }
 
+    std::cout << "Reading config" << std::endl;
     std::ifstream secret_file("client_secret");
     std::string client_id;
     std::string client_secret;
@@ -110,7 +117,7 @@ int main()
 
     std::ifstream config_file("config");
     std::string bot_nickname;
-    std::string channel;
+    std::vector<std::string> channels;
     std::unordered_set<std::string> chatbots;
     while (std::getline(config_file, line)) {
         const std::size_t equal_pos = line.find("=");
@@ -118,7 +125,14 @@ int main()
         const std::string conf_name = line.substr(0, equal_pos);
         std::string conf_value = line.substr(equal_pos+1);
         if (conf_name=="nickname") {bot_nickname=conf_value;}
-        else if (conf_name=="channel") {channel=conf_value;}
+        else if (conf_name=="channels") {
+            while (true) { 
+                const std::size_t listcut_ = conf_value.find(",");
+                if (listcut_ == std::string::npos) {channels.push_back(conf_value); break;}
+                channels.push_back(conf_value.substr(0, listcut_));
+                conf_value = conf_value.substr(listcut_+1);
+            }
+        }
         else if (conf_name=="chatbots") {
             while (true) { 
                 const std::size_t listcut_ = conf_value.find(",");
@@ -129,15 +143,24 @@ int main()
         }
     }
     bool missing = false;
-      if (bot_nickname.empty()) {
+    if (bot_nickname.empty()) {
         std::cerr << "Missing 'bot_nickname' in config file" << std::endl; missing = true;
-    } if (channel.empty()) {
-        std::cerr << "Missing 'channel' in config file" << std::endl; missing = true;
+    }
+    if (channels.empty()) {
+        std::cout << "WARNING: no 'channels' have been given in the config file" << std::endl;
     }
     if (missing) {return 1;}
 
-    std::cout << "Loading command" << std::endl;
-    Commands commands("commands/"+channel+".txt");
+    std::cout << "Loading commands for; ";
+    std::unordered_map<std::string, Commands> channels_commands;
+    for (const std::string& channel : channels) {
+        const std::string commands_path = "commands/"+channel+".txt";
+        struct stat buffer;
+        if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
+        std::cout << channel << " ";
+        channels_commands.emplace(channel, Commands(commands_path));
+    }
+    std::cout << std::endl;
 
     TwitchAuth auth(
         client_id,
@@ -168,11 +191,13 @@ int main()
         std::cerr << "Missing `chat:read` from bot's oauth token. Re-auth the token and restart the program.";
     } else {
         chat_enabled = true;
-        twitch_chat.emplace(*bot_oauth, client_id, client_secret, bot_nickname, channel);       
+        twitch_chat.emplace(*bot_oauth, client_id, client_secret, bot_nickname, channels);       
         std::cout << "connecting twitch chat" << std::endl;
         twitch_chat->on_message(debug_on_msg);
         twitch_chat->on_message(
-            [&twitch_api, &chatbots, &commands](const TwitchMessage& message) {chat_commands(message, twitch_api, commands, chatbots);}
+            [&twitch_api, &chatbots, &channels_commands](const TwitchMessage& message) {
+                chat_commands(message, twitch_api, channels_commands, chatbots);
+            }
         );
         try {
             if (!twitch_chat->connect()) {
@@ -190,12 +215,16 @@ int main()
     while (running) {
         sleep(1);
         if (!command.empty()) {
-            if (command.rfind("send", 0) == 0) {
-                const std::string send_message = command.substr(5);
-                std::cout << twitch_api.send_message(twitch_api.get_id(channel, true), send_message) << std::endl;
-            } else if (command == "reload_cmds") {
+
+            //if (command.rfind("send", 0) == 0) {
+            //    const std::string send_message = command.substr(5);
+            //    std::cout << twitch_api.send_message(twitch_api.get_id(channel, true), send_message) << std::endl;
+            //} else
+            if (command == "reload_cmds") {
                 std::cout << "Reloading commands" << std::endl;
-                commands.load();
+                for (auto& [_, commands] : channels_commands) {
+                    commands.load();
+                }
             }
             command.clear();
         }

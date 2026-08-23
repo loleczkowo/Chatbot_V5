@@ -5,6 +5,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
 
+#include <vector>
 #include <iostream>
 #include <utility>
 
@@ -15,13 +16,13 @@ TwitchChat::TwitchChat(
     std::string client_id,
     std::string client_secret,
     std::string bot_nickname,
-    std::string channel
+    std::vector<std::string> channels
 )
     : oauth_(oauth),
       client_id_(std::move(client_id)),
       client_secret_(std::move(client_secret)),
       bot_nickname_(std::move(bot_nickname)),
-      channel_(std::move(channel)),
+      channels_(std::move(channels)),
       ssl_context_(boost::asio::ssl::context::tlsv12_client)
 {
 }
@@ -65,7 +66,7 @@ bool TwitchChat::raw_connect()
     send_raw("CAP REQ :twitch.tv/tags twitch.tv/commands\r\n");
     send_raw("PASS oauth:" + oauth_.get_token() + "\r\n");
     send_raw("NICK " + bot_nickname_ + "\r\n");
-    send_raw("JOIN #" + channel_ + "\r\n");    
+    for (const std::string& channel : channels_) { send_raw("JOIN #" + channel + "\r\n"); }
     while (true) {
         std::string line = read_line();
         if (line.find("Login authentication failed") != std::string::npos) {

@@ -64,7 +64,7 @@ public:
         std::string client_id,
         std::string client_secret,
         std::string bot_nickname,
-        std::string channel
+        std::vector<std::string> channels
     );
 
     bool connect();
@@ -77,7 +77,7 @@ private:
     const std::string client_id_;
     const std::string client_secret_;
     const std::string bot_nickname_;
-    const std::string channel_;
+    const std::vector<std::string> channels_;
 
     void send_raw(const std::string& line);
     bool raw_connect();

@@ -1,5 +1,7 @@
+- Rewrite paths in <filesystem>
 - multible creator support
 - Find a way for a command to use regex
 - make async api
 - rewrite whole command system
 - secure removeal/edit of OAuth
+- rewrite terminal command system
