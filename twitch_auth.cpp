@@ -512,7 +512,7 @@ void TwitchAuth::oauth_server()
 
     sockaddr_in address{};
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons(port_);
 
     if (bind(
