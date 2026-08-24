@@ -86,16 +86,21 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 Json::Value TwitchApi::get(const std::string& link, const std::string& working_channel_id, const std::unordered_set<std::string>& scopes, const std::unordered_set<std::string>& bot_scopes) {
     Json::Value root;
     std::string use_token;
-    TwitchOAuth* bot_oauth = nullptr;
-    TwitchOAuth* working_channel_oauth = working_channel_id.empty() ? nullptr : auth_.get_oauth(working_channel_id);
-    if (!scopes.empty() && (working_channel_oauth == nullptr || !working_channel_oauth->check_scopes(scopes))) {
+    bool using_bot_oauth = false;
+    bool channel_has_scopes = false;
+    if (!working_channel_id.empty()) {
+        const TwitchLockedOAuth working_channel_oauth = auth_.get_oauth(working_channel_id);
+        if (working_channel_oauth!=nullptr) {channel_has_scopes = working_channel_oauth->check_scopes(scopes);}
+    }
+    if (!scopes.empty() && !channel_has_scopes) {
         // We do not have the needed channel oauth so we fallback to bot's user token (If we have one)
-        bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
         if (bot_oauth == nullptr || !bot_oauth->check_scopes(bot_scopes)) {
             std::cerr << "Missing needed OAuth2 tokens for request; " << link << std::endl << std::endl;
             return root;
         }
         use_token = bot_oauth->get_token();
+        using_bot_oauth = true;
     } else {
         use_token = auth_.get_token();
     }
@@ -103,16 +108,17 @@ Json::Value TwitchApi::get(const std::string& link, const std::string& working_c
     root = raw_get(link, use_token, status_code);
     if (status_code == 401) {
         std::cout << "Twitch api fail by wrong token, retrying" << std::endl;
-        if (bot_oauth == nullptr) {
-            auth_.refresh_token();
-            use_token = auth_.get_token();
-        } else {
+        if (using_bot_oauth) {
             auth_.oauth_check(get_id(bot_nickname_, true));
-            bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
             if (bot_oauth==nullptr) {return root;}
             use_token = bot_oauth->get_token();
+        } else {
+            auth_.refresh_token();
+            use_token = auth_.get_token();
         }
         root = raw_get(link, use_token, status_code);
+        if (status_code == 401) {std::cerr << "Still Twitch api fail" << std::endl;}
     }
     return root;
 }
@@ -152,16 +158,21 @@ Json::Value TwitchApi::raw_get(const std::string& link, const std::string& token
 Json::Value TwitchApi::post(const std::string& link, const std::string& body, const std::string& working_channel_id, const std::unordered_set<std::string>& scopes, const std::unordered_set<std::string>& bot_scopes) {
     Json::Value root;
     std::string use_token;
-    TwitchOAuth* bot_oauth = nullptr;
-    TwitchOAuth* working_channel_oauth = working_channel_id.empty() ? nullptr : auth_.get_oauth(working_channel_id);
-    if (!scopes.empty() && (working_channel_oauth == nullptr || !working_channel_oauth->check_scopes(scopes))) {
+    bool using_bot_oauth = false;
+    bool channel_has_scopes = false;
+    if (!working_channel_id.empty()) {
+        const TwitchLockedOAuth working_channel_oauth = auth_.get_oauth(working_channel_id);
+        if (working_channel_oauth!=nullptr) {channel_has_scopes = working_channel_oauth->check_scopes(scopes);}
+    }
+    if (!scopes.empty() && !channel_has_scopes) {
         // We do not have the needed channel oauth so we fallback to bot's user token (If we have one)
-        bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
         if (bot_oauth == nullptr || !bot_oauth->check_scopes(bot_scopes)) {
-            std::cerr << "Missing needed OAuth2 tokens for request; " << link << std::endl << body << std::endl;
+            std::cerr << "Missing needed OAuth2 tokens for request; " << link << std::endl << std::endl;
             return root;
         }
         use_token = bot_oauth->get_token();
+        using_bot_oauth = true;
     } else {
         use_token = auth_.get_token();
     }
@@ -169,14 +180,14 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
     root = raw_post(link, use_token, body, status_code);
     if (status_code == 401) {
         std::cerr << "Twitch api fail by wrong token, retrying" << std::endl;
-        if (bot_oauth == nullptr) {
-            auth_.refresh_token();
-            use_token = auth_.get_token();
-        } else {
+        if (using_bot_oauth) {
             auth_.oauth_check(get_id(bot_nickname_, true));
-            bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
             if (bot_oauth==nullptr) {return root;}
             use_token = bot_oauth->get_token();
+        } else {
+            auth_.refresh_token();
+            use_token = auth_.get_token();
         }
         root = raw_post(link, use_token, body, status_code);
         if (status_code == 401) {std::cerr << "Still Twitch api fail" << std::endl;}

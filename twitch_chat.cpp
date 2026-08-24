@@ -14,16 +14,14 @@
 
 
 TwitchChat::TwitchChat(
-    TwitchOAuth& oauth,
-    std::string client_id,
-    std::string client_secret,
+    TwitchAuth& auth,
     std::string bot_nickname,
+    std::string bot_id,
     std::vector<std::string> channels
 )
-    : oauth_(oauth),
-      client_id_(std::move(client_id)),
-      client_secret_(std::move(client_secret)),
+    : auth_(auth),
       bot_nickname_(std::move(bot_nickname)),
+      bot_id_(std::move(bot_id)),
       channels_(std::move(channels)),
       ssl_context_(boost::asio::ssl::context::tls_client)
 {
@@ -44,8 +42,8 @@ bool TwitchChat::connect()
     >(io_context_, ssl_context_);
 
     if (!raw_connect()) {
-        std::cerr << "error while connecting chat, refreshing token and retrying" << std::endl;
-        oauth_.refresh(client_id_, client_secret_);
+        std::cerr << "error while connecting chat, checking token and retrying" << std::endl;
+        auth_.oauth_check(bot_id_);
         if (!raw_connect()) {
             std::cerr << "cannot connect to chat o7" << std::endl;
             return false;
@@ -71,9 +69,15 @@ bool TwitchChat::raw_connect()
     }
     socket_->set_verify_callback(boost::asio::ssl::host_name_verification(host));
     socket_->handshake(boost::asio::ssl::stream_base::client);
-
+    
+    std::string bot_token;
+    {
+        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(bot_id_);
+        if (bot_oauth == nullptr) {return false;}
+        bot_token = bot_oauth->get_token();
+    }
     send_raw("CAP REQ :twitch.tv/tags twitch.tv/commands\r\n");
-    send_raw("PASS oauth:" + oauth_.get_token() + "\r\n");
+    send_raw("PASS oauth:" + bot_token + "\r\n");
     send_raw("NICK " + bot_nickname_ + "\r\n");
     for (const std::string& channel : channels_) { send_raw("JOIN #" + channel + "\r\n"); }
     while (true) {
@@ -179,7 +183,7 @@ void TwitchChat::read_loop() {
             }
             if ((line.find("Login authentication failed") != std::string::npos) ||
                 (line.find("Login unsuccessful") != std::string::npos)) {
-                oauth_.refresh(client_id_, client_secret_);
+                auth_.oauth_check(bot_id_);
                 disconnect_socket();
                 connected_ = false;
             }

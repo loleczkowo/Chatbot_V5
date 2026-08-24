@@ -191,7 +191,16 @@ int main()
     std::string token = auth.get_token();
     std::cout << "fetching bot token..." << std::endl;
     TwitchApi twitch_api (auth, bot_nickname);
-    TwitchOAuth* bot_oauth = auth.get_oauth(twitch_api.get_id(bot_nickname, true));
+    const std::string bot_id = twitch_api.get_id(bot_nickname, true);
+    bool bot_token_exists = false;
+    bool bot_token_has_scopes = false;
+    {
+        TwitchLockedOAuth bot_oauth = auth.get_oauth(bot_id);
+        if (bot_oauth!=nullptr) {
+            bot_token_exists = true;
+            bot_token_has_scopes = bot_oauth->check_scopes({"chat:read"});
+        }
+    }
     std::cout << "Tokens acquired." << std::endl;
     std::cout << "OAUTH2 links;" << std::endl <<
         "  bot account; " << auth.oauth2_botauth() << std::endl <<
@@ -199,14 +208,14 @@ int main()
 
     bool chat_enabled = false;
     std::optional<TwitchChat> twitch_chat;
-    if (bot_oauth == nullptr) {
-        std::cerr << "Failed to get bot's oauth token. Add it and restart the program";
-    } else if (!bot_oauth->check_scopes({"chat:read"})) {
-        std::cerr << "Missing `chat:read` from bot's oauth token. Re-auth the token and restart the program.";
+    if (!bot_token_exists) {
+        std::cerr << "Failed to get bot's oauth token. Add it and restart the program." << std::endl;
+    } else if (!bot_token_has_scopes) {
+        std::cerr << "Missing `chat:read` from bot's oauth token. Re-auth the token and restart the program." << std::endl;
     } else {
         chat_enabled = true;
-        twitch_chat.emplace(*bot_oauth, client_id, client_secret, bot_nickname, channels);       
         std::cout << "connecting twitch chat" << std::endl;
+        twitch_chat.emplace(auth, bot_nickname, bot_id, channels);       
         twitch_chat->on_message(debug_on_msg);
         twitch_chat->on_message(
             [&twitch_api, &chatbots, &channels_commands](const TwitchMessage& message) {

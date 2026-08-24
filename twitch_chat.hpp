@@ -60,10 +60,9 @@ class TwitchChat {
 public:
     using MessageCallback = std::function<void(const TwitchMessage&)>;
     TwitchChat(
-        TwitchOAuth& oauth,
-        std::string client_id,
-        std::string client_secret,
+        TwitchAuth& auth,
         std::string bot_nickname,
+        std::string bot_id,
         std::vector<std::string> channels
     );
 
@@ -73,10 +72,9 @@ public:
     bool is_connected() const;
 
 private:
-    TwitchOAuth& oauth_;
-    const std::string client_id_;
-    const std::string client_secret_;
+    TwitchAuth& auth_;
     const std::string bot_nickname_;
+    const std::string bot_id_;
     const std::vector<std::string> channels_;
 
     void send_raw(const std::string& line);

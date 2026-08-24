@@ -43,6 +43,21 @@ private:
     std::unordered_set<std::string> scopes_;
 };
 
+class TwitchLockedOAuth {
+public:
+    TwitchLockedOAuth(std::unique_lock<std::mutex> lock, TwitchOAuth* oauth)
+        : lock_(std::move(lock)),
+          oauth_(oauth)
+    {}
+    bool operator==(std::nullptr_t) const {return oauth_==nullptr;}
+    bool operator!=(std::nullptr_t) const {return oauth_!=nullptr;}
+    TwitchOAuth* operator->() const {return oauth_;}
+    TwitchOAuth& operator*() const {return *oauth_;}
+private:
+    std::unique_lock<std::mutex> lock_;
+    TwitchOAuth* oauth_;
+};
+
 class TwitchAuth {
 public:
     TwitchAuth(
@@ -54,7 +69,7 @@ public:
     );
 
     std::string get_token();
-    TwitchOAuth* get_oauth(const std::string& user_id); 
+    TwitchLockedOAuth get_oauth(const std::string& user_id); 
     bool refresh_token();
     bool validate_token();
     void oauth_check();

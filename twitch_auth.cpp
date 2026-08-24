@@ -263,13 +263,10 @@ std::string TwitchAuth::get_token() {
     return token_;
 }
 
-TwitchOAuth* TwitchAuth::get_oauth(const std::string& user_id) {
-    std::lock_guard<std::mutex> lock(OAuths_mutex_);
+TwitchLockedOAuth TwitchAuth::get_oauth(const std::string& user_id) {
+    std::unique_lock<std::mutex> lock(OAuths_mutex_);
     auto oauth_it = OAuths_.find(user_id);
-    if (oauth_it == OAuths_.end()) {
-        return nullptr;
-    }
-    return &oauth_it->second;
+    return TwitchLockedOAuth(std::move(lock), oauth_it==OAuths_.end() ? nullptr : &oauth_it->second);
 }
 
 bool TwitchAuth::refresh_token() {
