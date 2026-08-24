@@ -166,10 +166,10 @@ int main()
     std::cout << "Loading commands for; ";
     std::unordered_map<std::string, Commands> channels_commands;
     for (const std::string& channel : channels) {
+        std::cout << channel << " " << std::flush;
         const std::string commands_path = "commands/"+channel+".txt";
         struct stat buffer;
         if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
-        std::cout << channel << " ";
         channels_commands.emplace(channel, Commands(commands_path));
     }
     std::cout << std::endl;
@@ -263,7 +263,7 @@ int main()
         }
 
         if (last_oauth_check+15*60 < std::time(nullptr)) {
-            std::cout << "OAuth check ...";
+            std::cout << "OAuth check ..." << std::flush;
             auth.oauth_check();
             std::cout << " done!" << std::endl;
             last_oauth_check = std::time(nullptr);
