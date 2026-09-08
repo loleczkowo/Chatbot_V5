@@ -1,6 +1,6 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -O0 -I/usr/include/jsoncpp
-LDFLAGS = -pthread -lssl -lcrypto -lcurl -ljsoncpp
+CXXFLAGS = -std=c++20 -Wall -Wextra -O0 -I/usr/include/jsoncpp $(shell pkg-config --cflags lua5.4)
+LDFLAGS = -pthread -lssl -lcrypto -lcurl -ljsoncpp $(shell pkg-config --libs lua5.4)
 
 SRC = main.cpp twitch_chat.cpp twitch_auth.cpp twitch_api.cpp cmd_parser.cpp
 OBJ = $(SRC:.cpp=.o)

@@ -1,5 +1,4 @@
 - Rewrite paths in <filesystem>
 - Find a way for a command to use regex
 - make async api
-- rewrite whole command system
 - rewrite terminal command system

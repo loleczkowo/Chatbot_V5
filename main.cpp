@@ -28,13 +28,13 @@ void debug_on_msg(const TwitchMessage& message) {
 
 void chat_commands(
     const TwitchMessage& message, TwitchApi& api,
-    const std::unordered_map<std::string, Commands>& channels_commands,
+    std::unordered_map<std::string, Commands>& channels_commands,
     const std::unordered_set<std::string>& chatbots
 )
 {
     auto it = channels_commands.find(message.room_name);
     if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
-    const Commands commands = it->second; 
+    Commands& commands = it->second; 
 
     const std::size_t first_space_ = message.message.find(' ');
     std::string cmd_;
@@ -43,11 +43,11 @@ void chat_commands(
 
     const std::string command_return = commands.check(cmd_, message);
     if (command_return == " ") {return;}
-    // I allowed echo to be recursive because its cool :)
-    if (command_return.empty() && cmd_=="!echo" && first_space_ != std::string::npos) {
-        api.send_message(message.room_id, message.message.substr(first_space_+1), message.id);
-        return;
-    }
+    //// I allowed echo to be recursive because its cool :)
+    //if (command_return.empty() && cmd_=="!echo" && first_space_ != std::string::npos) {
+    //    api.send_message(message.room_id, message.message.substr(first_space_+1), message.id);
+    //    return;
+    //}
     
     // prevent bots from using commands
     if (chatbots.find(message.author.login) != chatbots.end()) {return;}
@@ -61,10 +61,10 @@ void chat_commands(
         return;
     }
     if (message.message == "!commands") {
-        const std::vector<std::string> cmds_list = commands.command_list();
+        const std::vector<const std::string*> cmds_list = commands.get_commands_order();
         std::string respond = "";
-        for (const std::string& cmd_fromlist : cmds_list) {
-            respond += cmd_fromlist + " ";
+        for (const std::string* cmd_name : cmds_list) {
+            respond += *cmd_name + " ";
         }
         api.send_message(message.room_id, respond, message.id);
         return;
@@ -170,7 +170,7 @@ int main()
         const std::string commands_path = "commands/"+channel+".txt";
         struct stat buffer;
         if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
-        channels_commands.emplace(channel, Commands(commands_path));
+        channels_commands.try_emplace(channel, commands_path);
     }
     std::cout << std::endl;
 
