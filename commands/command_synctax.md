@@ -16,6 +16,7 @@ Lines that are empty or start with `//` are ignored.
 
 The current options are:
 - `COOLDOWN=123`
+- `USER_COOLDOWN=69`
 - `LUA`
 - `LUA_MESSAGE`
 - `LUA_AUTHOR`

@@ -11,11 +11,12 @@
 
 class Commands {
 public:
+    using CommandId = uint16_t;
     struct Command {
         std::string command;
 
         std::chrono::seconds cooldown;
-        std::chrono::steady_clock::time_point last_used{};
+        std::chrono::seconds user_cooldown{};
 
         bool LUA{};
         bool LUA_message{};
@@ -33,15 +34,18 @@ public:
     Commands& operator=(const Commands&) = delete;
 
     void load(); // loads/reloads load_path    
-    const std::unordered_map<std::string, Command>& get_commands() const;
+    const std::unordered_map<CommandId, Command>& get_commands() const;
     const std::vector<const std::string*>& get_commands_order() const;
     std::string check(const std::string& command, const TwitchMessage& message);
 
 private:
     const std::string load_path_;
-    std::unordered_map<std::string, Command> commands;
-    std::vector<const std::string*> commands_order;
-    std::unordered_map<std::string, Command*> aliases;  // unsafe?
+    std::unordered_map<CommandId, Command> commands;
+    std::vector<const std::string*> command_names;
+    std::unordered_map<std::string, CommandId> command_lookup;
+
+    std::unordered_map<CommandId, std::chrono::steady_clock::time_point> cooldowns{};
+    std::unordered_map<std::string, std::unordered_map<CommandId, std::chrono::steady_clock::time_point>> user_cooldowns{};
 
     void set_var(const std::string& name, const std::string& value);
     void set_var(const std::string& name, lua_Integer value);

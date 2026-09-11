@@ -1,7 +1,6 @@
 #include "cmd_parser.hpp"
 #include "twitch_chat.hpp"
 
-
 #include <sstream>
 #include <iomanip>
 #include <string>
@@ -33,29 +32,36 @@ void Commands::load() {
     if (!file.is_open()) {std::cerr << "Cannot load " << load_path_ << std::endl; return;}
     std::string line;
     int command_count = 0;
-    // int alias_count = 0;
     while (std::getline(file, line)) {
+        // TODO do better counting or smth
         if (line.empty() || line.rfind("//", 0) == 0) {continue;}
         const std::size_t main_split = line.find("^");
         if (main_split == std::string::npos) {continue;}
         line.resize(main_split);
         command_count += 1;
-        // alias_count += std::count(line.begin(), line.end(), '|');  // DOES NOT COUNT ALIASES PROPERLY
     }
 
     file.clear();
     file.seekg(0);
 
-    aliases.clear();
-    commands_order.clear();
+    // Not a fan of it. It breaks the long wait/rare commands. But we need a database to fix that.
+    cooldowns.clear();
+    user_cooldowns.clear();
+
+    command_lookup.clear();
+    command_names.clear();
     for (auto& [_, cmd] : commands) {
         if (cmd.lua_ref != LUA_NOREF) {luaL_unref(lua_, LUA_REGISTRYINDEX, cmd.lua_ref);}
     }
     commands.clear();
-    // aliases.reserve(alias_count);
-    commands.reserve(command_count);
+
+    commands.reserve(command_count);  // We know that its at least that.
+    command_lookup.reserve(command_count);  // ^
+    command_names.reserve(command_count);  // Could little under in edgecases
+    cooldowns.reserve(command_count);  // Maybe too much
 
 
+    CommandId current_id = 0;
     while (std::getline(file, line)) {
         if (line.empty() || line.rfind("//", 0) == 0) {continue;}
 
@@ -71,12 +77,12 @@ void Commands::load() {
             command_output = line.substr(main_split+1);
         } else {command_output="";}  // aka command disabled
 
-        // I gave up, this is very unsafe(?) but works ig?
-        Command cmd{
-            .command = command_output,
-            .cooldown = std::chrono::seconds(5)
-        };
-        Command* cmd_ptr = &cmd;
+        auto [it, _] = commands.emplace(
+            current_id,
+            Command{.command = command_output,
+                    .cooldown = std::chrono::seconds(5) }
+        );
+        Command* cmd_ptr = &it->second;
         std::string command_name;
         std::size_t start = 0;
         while (start < command_parse.size()) {
@@ -104,22 +110,48 @@ void Commands::load() {
                         continue;
                     }
                 }
+                if (var_name == "USER_COOLDOWN") {
+                    int value;
+                    auto [ptr, ec] = std::from_chars(var_value.data(), var_value.data() + var_value.size(), value);
+                    if (ec == std::errc{} && ptr == var_value.data() + var_value.size()) {
+                        cmd_ptr->user_cooldown = std::chrono::seconds(value);
+                        continue;
+                    }
+                }
             }
 
             if (command_name.empty()) {
-                auto [it, _] = commands.emplace(parse_, std::move(cmd));
-                cmd_ptr = &it->second;
-                commands_order.push_back(&it->first);
                 command_name = parse_;
+                if (command_name == "_") {continue;}  // Hidden (find a better way, maybe a flag?)
+
+                const auto cmd_name_str_it = command_lookup.find(std::string(parse_));
+                if (cmd_name_str_it != command_lookup.end()) {
+                    const auto name_it = std::find(command_names.begin(), command_names.end(), &cmd_name_str_it->first);  // slow ~O(commands)
+                    if (name_it != command_names.end()) {
+                        command_names.erase(name_it);
+                    }
+                }
+                auto [cmd_lookup_it, _] = command_lookup.insert_or_assign(command_name, current_id);
+                command_names.push_back(&cmd_lookup_it->first);
                 continue;
             }
-            aliases.emplace(parse_, cmd_ptr);
+
+
+            const std::string str_parse(parse_);
+            const auto cmd_name_str_it = command_lookup.find(str_parse);
+            if (cmd_name_str_it != command_lookup.end()) {
+                const auto name_it = std::find(command_names.begin(), command_names.end(), &cmd_name_str_it->first);  // slow ~O(commands)
+                if (name_it != command_names.end()) {
+                    command_names.erase(name_it);
+                }
+            }
+            command_lookup.insert_or_assign(str_parse, current_id);
         }
 
         // compile LUA's
         if (cmd_ptr->LUA && !cmd_ptr->command.empty()) {
             const std::string code = "return " + cmd_ptr->command;
-            const std::string chunk_name = "command-"+command_name;
+            const std::string chunk_name = "command-"+std::to_string(current_id)+"-(\""+command_name+"\")";
             if (luaL_loadbuffer(lua_, code.data(), code.size(), chunk_name.c_str())!=LUA_OK) {
                 std::cerr << "Command lua compile error in " << load_path_ << ":\n" << lua_tostring(lua_, -1) << std::endl;
                 lua_pop(lua_, 1);
@@ -127,6 +159,7 @@ void Commands::load() {
                 cmd_ptr->lua_ref = luaL_ref(lua_, LUA_REGISTRYINDEX);
             }
         }
+        current_id++;
     }
 }
 
@@ -178,18 +211,43 @@ int lua_get_time(lua_State* lua) {
 }
 
 std::string Commands::check(const std::string& command, const TwitchMessage& message) {
-    auto cmd_it = commands.find(command);
-    Command* cmd;
+    const auto cmd_id_it = command_lookup.find(command);
+    if (cmd_id_it == command_lookup.end()) {return "";}
+    const Commands::CommandId cmd_id = cmd_id_it->second;
+    const auto cmd_it = commands.find(cmd_id);
     if (cmd_it == commands.end()) {
-        auto cmd_it_alias = aliases.find(command);
-        if (cmd_it_alias == aliases.end()) {return "";}
-        cmd=cmd_it_alias->second;
-    } else {cmd=&cmd_it->second;}
+        // should not happen
+        std::cerr << "Command (ID" << cmd_id << ") for '" << command << "' not found" << std::endl;
+        return "";
+    }
+    Command* cmd = &cmd_it->second;
 
     // cooldown
     const auto now = std::chrono::steady_clock::now();
-    if (now - cmd->last_used < cmd->cooldown) {return "";}
-    cmd->last_used = now;
+    auto last_used_it = cooldowns.find(cmd_id);
+    if (last_used_it == cooldowns.end()) {
+        cooldowns.emplace(cmd_id, now);
+    } else {
+        if (now - last_used_it->second < cmd->cooldown) {return "";}
+        last_used_it->second = now;
+    }
+
+    if (cmd->user_cooldown != std::chrono::seconds::zero()) {
+        auto user_uses_it = user_cooldowns.find(message.author.user_id);
+        if (user_uses_it == user_cooldowns.end()) {
+            user_uses_it = user_cooldowns.try_emplace(message.author.user_id).first;
+            user_uses_it->second.emplace(cmd_id, now);
+        } else {
+            std::unordered_map<Commands::CommandId, std::chrono::steady_clock::time_point>& user_uses = user_uses_it->second;
+            auto user_last_use_it = user_uses.find(cmd_id);
+            if (user_last_use_it == user_uses.end()) {
+                user_uses.emplace(cmd_id, now);
+            } else {
+                if (now - user_last_use_it->second < cmd->user_cooldown) {return "";}
+                user_last_use_it->second = now;
+            }
+        }
+    } 
 
     if (!cmd->LUA) {return cmd->command;}
     if (cmd->lua_ref == LUA_NOREF) {return "";}
@@ -272,5 +330,5 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 }
 
 
-const std::unordered_map<std::string, Commands::Command>& Commands::get_commands() const {return commands;}
-const std::vector<const std::string*>& Commands::get_commands_order() const {return commands_order;}
+const std::unordered_map<Commands::CommandId, Commands::Command>& Commands::get_commands() const {return commands;}
+const std::vector<const std::string*>& Commands::get_commands_order() const {return command_names;}
