@@ -321,7 +321,7 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 }
 
 int Commands::clean_cooldowns() {
-    int cleaned;
+    int cleaned = 0;
     // could also clean normal cooldowns?
     const auto now = std::chrono::steady_clock::now();
 
