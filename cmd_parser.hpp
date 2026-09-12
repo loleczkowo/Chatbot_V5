@@ -35,13 +35,13 @@ public:
 
     void load(); // loads/reloads load_path    
     const std::unordered_map<CommandId, Command>& get_commands() const;
-    const std::vector<const std::string*>& get_commands_order() const;
+    const std::vector<std::string>& get_commands_order() const;
     std::string check(const std::string& command, const TwitchMessage& message);
 
 private:
     const std::string load_path_;
     std::unordered_map<CommandId, Command> commands;
-    std::vector<const std::string*> command_names;
+    std::vector<std::string> command_names;
     std::unordered_map<std::string, CommandId> command_lookup;
 
     std::unordered_map<CommandId, std::chrono::steady_clock::time_point> cooldowns{};

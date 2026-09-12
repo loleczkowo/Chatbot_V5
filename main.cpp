@@ -61,10 +61,10 @@ void chat_commands(
         return;
     }
     if (message.message == "!commands") {
-        const std::vector<const std::string*> cmds_list = commands.get_commands_order();
+        const std::vector<std::string> cmds_list = commands.get_commands_order();
         std::string respond = "";
-        for (const std::string* cmd_name : cmds_list) {
-            respond += *cmd_name + " ";
+        for (const std::string& cmd_name : cmds_list) {
+            respond += cmd_name + " ";
         }
         api.send_message(message.room_id, respond, message.id);
         return;

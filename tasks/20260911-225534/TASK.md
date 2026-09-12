@@ -1,6 +1,6 @@
 # Fix Commands 'Corrupted double linked list'
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 500
 - TAGS: bug,critical,commands,core-dump
 

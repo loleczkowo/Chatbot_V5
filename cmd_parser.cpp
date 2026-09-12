@@ -124,28 +124,20 @@ void Commands::load() {
                 command_name = parse_;
                 if (command_name == "_") {continue;}  // Hidden (find a better way, maybe a flag?)
 
-                const auto cmd_name_str_it = command_lookup.find(std::string(parse_));
-                if (cmd_name_str_it != command_lookup.end()) {
-                    const auto name_it = std::find(command_names.begin(), command_names.end(), &cmd_name_str_it->first);  // slow ~O(commands)
-                    if (name_it != command_names.end()) {
-                        command_names.erase(name_it);
-                    }
+                auto [cmd_lookup_it, inserted] = command_lookup.insert_or_assign(command_name, current_id);
+                if (!inserted) {
+                    const auto name_it = std::find(command_names.begin(), command_names.end(), command_name);
+                    if (name_it != command_names.end()) { command_names.erase(name_it); }
                 }
-                auto [cmd_lookup_it, _] = command_lookup.insert_or_assign(command_name, current_id);
-                command_names.push_back(&cmd_lookup_it->first);
+                command_names.push_back(command_name);
                 continue;
             }
 
-
-            const std::string str_parse(parse_);
-            const auto cmd_name_str_it = command_lookup.find(str_parse);
-            if (cmd_name_str_it != command_lookup.end()) {
-                const auto name_it = std::find(command_names.begin(), command_names.end(), &cmd_name_str_it->first);  // slow ~O(commands)
-                if (name_it != command_names.end()) {
-                    command_names.erase(name_it);
-                }
+            const auto [_, inserted] = command_lookup.insert_or_assign(std::string(parse_), current_id);
+            if (!inserted) {
+                const auto name_it = std::find(command_names.begin(), command_names.end(), parse_);
+                if (name_it != command_names.end()) { command_names.erase(name_it); }
             }
-            command_lookup.insert_or_assign(str_parse, current_id);
         }
 
         // compile LUA's
@@ -331,4 +323,4 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 
 
 const std::unordered_map<Commands::CommandId, Commands::Command>& Commands::get_commands() const {return commands;}
-const std::vector<const std::string*>& Commands::get_commands_order() const {return command_names;}
+const std::vector<std::string>& Commands::get_commands_order() const {return command_names;}
