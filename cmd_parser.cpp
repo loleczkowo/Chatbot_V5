@@ -155,7 +155,6 @@ void Commands::load() {
     }
 }
 
-
 void Commands::set_var(const std::string& name, const std::string& value) {
     lua_pushlstring(lua_, value.data(), value.size());
     lua_setglobal(lua_, name.c_str());
@@ -319,6 +318,36 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 
     std::string out(result, len);
     lua_pop(lua_, 1); return out;
+}
+
+int Commands::clean_cooldowns() {
+    int cleaned;
+    // could also clean normal cooldowns?
+    const auto now = std::chrono::steady_clock::now();
+
+    auto user_it = user_cooldowns.begin();
+    while (user_it != user_cooldowns.end()) {
+        std::unordered_map<Commands::CommandId, std::chrono::steady_clock::time_point>& user_cmd_cooldowns = user_it->second;
+        auto command_cooldown_it = user_cmd_cooldowns.begin();
+        while (command_cooldown_it != user_cmd_cooldowns.end()) {
+            auto cmd_it = commands.find(command_cooldown_it->first);
+            if (cmd_it == commands.end()) {
+                std::cerr << "Command (ID" << command_cooldown_it->first << ") for not found" << std::endl;
+                command_cooldown_it = user_cmd_cooldowns.erase(command_cooldown_it);
+                continue;
+            }
+            if (now - command_cooldown_it->second > cmd_it->second.user_cooldown) {
+                command_cooldown_it = user_cmd_cooldowns.erase(command_cooldown_it);
+                continue;
+            }
+            command_cooldown_it++;
+        }
+        if (command_cooldown_it == user_cmd_cooldowns.begin()) {
+            cleaned++;
+            user_it = user_cooldowns.erase(user_it);  // No longed needed.
+        } else {user_it++;}
+    }
+    return cleaned;
 }
 
 

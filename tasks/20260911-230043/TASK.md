@@ -1,6 +1,6 @@
 # Add user IDs clean-up
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 200
 - TAGS: feature,commands
 

@@ -183,7 +183,10 @@ int main()
     std::cout << "loading&checking oauth" << std::endl;
     auth.load_oauth();
     auth.oauth_check();
-    int64_t last_oauth_check = std::time(nullptr);
+    const time_t now = std::time(nullptr);
+    int64_t last_oauth_check = now;
+    int64_t last_cmd_clear_cooldowns = now;
+
     std::cout << "starting oauth2 server" << std::endl;
     auth.start_oauth2_server();
     
@@ -271,11 +274,22 @@ int main()
             auth.start_oauth2_server();
         }
 
-        if (last_oauth_check+15*60 < std::time(nullptr)) {
+        const time_t now = std::time(nullptr);
+        if (now - last_oauth_check > 15*60) {
             std::cout << "OAuth check ..." << std::flush;
             auth.oauth_check();
             std::cout << " done!" << std::endl;
-            last_oauth_check = std::time(nullptr);
+            last_oauth_check = now;
+        }
+
+        if (now - last_cmd_clear_cooldowns > 15*60) {
+            std::cout << "Clearing commands cooldowns for " << std::flush;
+            for (auto& [chan_name, commands] : channels_commands) {
+                std::cout << chan_name << std::flush;
+                std::cout << "(" << commands.clean_cooldowns() << ") " << std::flush;
+            }
+            std::cout << std::endl;
+            last_cmd_clear_cooldowns = now;
         }
     }
     input_thread.join();
