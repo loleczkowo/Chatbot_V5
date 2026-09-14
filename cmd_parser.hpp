@@ -24,6 +24,8 @@ public:
         bool LUA_badges{};
         bool LUA_reply{};
 
+        bool LUA_noreturn{};
+
         int lua_ref = LUA_NOREF;
     };
 

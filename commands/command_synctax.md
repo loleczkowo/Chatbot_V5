@@ -22,6 +22,7 @@ The current options are:
 - `LUA_AUTHOR`
 - `LUA_BADGES`
 - `LUA_REPLY`
+- `LUA_NORETURN`
 
 Default cooldown is 5 seconds.
 

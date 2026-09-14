@@ -98,6 +98,8 @@ void Commands::load() {
             if (parse_ == "LUA_BADGES") {cmd_ptr->LUA_badges=true; continue;}
             if (parse_ == "LUA_REPLY") {cmd_ptr->LUA_reply=true; continue;}
 
+            if (parse_ == "LUA_NORETURN") {cmd_ptr->LUA_noreturn=true; continue;}
+
             const std::size_t eq_split = parse_.find('=');
             if (eq_split != std::string_view::npos) {
                 const std::string_view var_name = parse_.substr(0, eq_split);
@@ -142,8 +144,9 @@ void Commands::load() {
 
         // compile LUA's
         if (cmd_ptr->LUA && !cmd_ptr->command.empty()) {
-            const std::string code = "return " + cmd_ptr->command;
-            const std::string chunk_name = "command-"+std::to_string(current_id)+"-(\""+command_name+"\")";
+            std::string code = cmd_ptr->command;
+            if (!cmd_ptr->LUA_noreturn) { code = "return " + code; }
+            const std::string chunk_name = "command-"+std::to_string(current_id)+"-\""+command_name+"\"";
             if (luaL_loadbuffer(lua_, code.data(), code.size(), chunk_name.c_str())!=LUA_OK) {
                 std::cerr << "Command lua compile error in " << load_path_ << ":\n" << lua_tostring(lua_, -1) << std::endl;
                 lua_pop(lua_, 1);
