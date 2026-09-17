@@ -53,7 +53,8 @@ Example:
 ```
 
 ## LUA chat message info
-Message info is stored inside the varible `MSG`.
+If you need the message after the command (For an example `hello world` from `!say hello world`) use `CUT_MSG`
+All the message info is stored inside the varible `MSG`.
 
 `LUA_MESSAGE` option enables:
 - `MSG.id`

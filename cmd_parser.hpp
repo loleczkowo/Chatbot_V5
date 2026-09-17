@@ -36,7 +36,7 @@ public:
     Commands& operator=(const Commands&) = delete;
 
     void load(); // loads/reloads load_path    
-    std::string check(const std::string& command, const TwitchMessage& message);
+    std::string check(const std::string& command, const TwitchMessage& message, const std::string& cut_message);
     int clean_cooldowns();  // cleans user_cooldowns of unnecesery users.
     const std::unordered_map<CommandId, Command>& get_commands() const;
     const std::vector<std::string>& get_commands_order() const;

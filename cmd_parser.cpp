@@ -204,7 +204,7 @@ int lua_get_time(lua_State* lua) {
     return 1;
 }
 
-std::string Commands::check(const std::string& command, const TwitchMessage& message) {
+std::string Commands::check(const std::string& command, const TwitchMessage& message, const std::string& cut_message) {
     const auto cmd_id_it = command_lookup.find(command);
     if (cmd_id_it == command_lookup.end()) {return "";}
     const Commands::CommandId cmd_id = cmd_id_it->second;
@@ -300,6 +300,8 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 
     std::size_t random = std::hash<std::string>{}(message.id);  // pseudorandom
     set_var("RANDOM", static_cast<lua_Integer>(random));
+
+    set_var("CUT_MSG", cut_message);
 
     lua_pushcfunction(lua_, lua_get_time);
     lua_setglobal(lua_, "TIME");

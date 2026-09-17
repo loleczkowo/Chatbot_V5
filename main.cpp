@@ -41,7 +41,7 @@ void chat_commands(
     if (first_space_ == std::string::npos) {cmd_=message.message;}
     else {cmd_=message.message.substr(0, first_space_);}
 
-    const std::string command_return = commands.check(cmd_, message);
+    const std::string command_return = commands.check(cmd_, message, cmd_);
     if (command_return == " ") {return;}
     //// I allowed echo to be recursive because its cool :)
     //if (command_return.empty() && cmd_=="!echo" && first_space_ != std::string::npos) {
