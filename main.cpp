@@ -39,9 +39,15 @@ void chat_commands(
     // TODO rework that. It wont work for some commands.
     const std::size_t first_space_ = message.message.find(' ');
     std::string cmd_;
-    if (first_space_ == std::string::npos) {cmd_=message.message;}
-    else {cmd_=message.message.substr(0, first_space_);}
-    std::string cut_msg = message.message.substr(first_space_+1);
+    std::string cut_msg;
+    if (first_space_ == std::string::npos) {
+        cmd_ = message.message;
+        cut_msg = message.message;
+    }
+    else {
+        cmd_ = message.message.substr(0, first_space_);
+        cut_msg = message.message.substr(first_space_+1);
+    }
 
     const std::string command_return = commands.check(cmd_, message, cut_msg);
     if (command_return == " ") {return;}
