@@ -36,12 +36,14 @@ void chat_commands(
     if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
     Commands& commands = it->second; 
 
+    // TODO rework that. It wont work for some commands.
     const std::size_t first_space_ = message.message.find(' ');
     std::string cmd_;
     if (first_space_ == std::string::npos) {cmd_=message.message;}
     else {cmd_=message.message.substr(0, first_space_);}
+    std::string cut_msg = message.message.substr(first_space_+1);
 
-    const std::string command_return = commands.check(cmd_, message, cmd_);
+    const std::string command_return = commands.check(cmd_, message, cut_msg);
     if (command_return == " ") {return;}
     //// I allowed echo to be recursive because its cool :)
     //if (command_return.empty() && cmd_=="!echo" && first_space_ != std::string::npos) {
