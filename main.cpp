@@ -36,17 +36,20 @@ void chat_commands(
     if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
     Commands& commands = it->second; 
 
+    std::string message_str = message.message;
+    if (message.responding) {message_str.erase(0, message.reply_msg.parent_user_login.length()+2);}
+
     // TODO rework that. It wont work for some commands.
-    const std::size_t first_space_ = message.message.find(' ');
+    const std::size_t first_space_ = message_str.find(' ');
     std::string cmd_;
     std::string cut_msg;
     if (first_space_ == std::string::npos) {
-        cmd_ = message.message;
-        cut_msg = message.message;
+        cmd_ = message_str;
+        cut_msg = "";
     }
     else {
-        cmd_ = message.message.substr(0, first_space_);
-        cut_msg = message.message.substr(first_space_+1);
+        cmd_ = message_str.substr(0, first_space_);
+        cut_msg = message_str.substr(first_space_+1);
     }
 
     const std::string command_return = commands.check(cmd_, message, cut_msg);
@@ -60,9 +63,10 @@ void chat_commands(
     // prevent bots from using commands
     if (chatbots.find(message.author.login) != chatbots.end()) {return;}
     if (message.author.badges.find("bot") != message.author.badges.end()) {return;}
+    const std::string respond_to = message.responding ? message.reply_msg.parent_message_id : message.id;
     
     if (!command_return.empty()) {
-        Json::Value api_result_ = api.send_message(message.room_id, command_return, message.id);
+        Json::Value api_result_ = api.send_message(message.room_id, command_return, respond_to);
         if (api_result_["data"][0]["is_send"].asBool()) {
             std::cerr << api_result_ << std::endl;
         }
@@ -74,7 +78,7 @@ void chat_commands(
         for (const std::string& cmd_name : cmds_list) {
             respond += cmd_name + " ";
         }
-        api.send_message(message.room_id, respond, message.id);
+        api.send_message(message.room_id, respond, respond_to);
         return;
     }
 }

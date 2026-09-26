@@ -301,6 +301,8 @@ TwitchMessage TwitchChat::parse_message(const std::string& line) const
             message.id = tag_value;
         } else if (tag_name=="mod") {
             message.author.mod = tag_value=="1";
+        } else if (tag_name=="vip") {
+            message.author.vip = tag_value=="1";
         } else if (tag_name=="returning-chatter") {
             message.author.returning_chatter = tag_value=="1";
         } else if (tag_name=="room-id") { 
