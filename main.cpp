@@ -32,6 +32,10 @@ void chat_commands(
     const std::unordered_set<std::string>& chatbots
 )
 {
+    // prevent bots from using commands
+    if (chatbots.find(message.author.login) != chatbots.end()) {return;}
+    if (message.author.badges.find("bot") != message.author.badges.end()) {return;}
+
     auto it = channels_commands.find(message.room_name);
     if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
     Commands& commands = it->second; 
@@ -54,15 +58,7 @@ void chat_commands(
 
     const std::string command_return = commands.check(cmd_, message, cut_msg);
     if (command_return == " ") {return;}
-    //// I allowed echo to be recursive because its cool :)
-    //if (command_return.empty() && cmd_=="!echo" && first_space_ != std::string::npos) {
-    //    api.send_message(message.room_id, message.message.substr(first_space_+1), message.id);
-    //    return;
-    //}
     
-    // prevent bots from using commands
-    if (chatbots.find(message.author.login) != chatbots.end()) {return;}
-    if (message.author.badges.find("bot") != message.author.badges.end()) {return;}
     const std::string respond_to = message.responding ? message.reply_msg.parent_message_id : message.id;
     
     if (!command_return.empty()) {
