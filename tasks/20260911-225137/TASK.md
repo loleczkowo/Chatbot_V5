@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 90
-- TAGS: feature
+- TAGS: feature,commands
 
 Make so a command can run if message regex completes.
