@@ -1,5 +1,6 @@
 #include "cmd_parser.hpp"
 #include "twitch_chat.hpp"
+#include "types.hpp"
 
 #include <sstream>
 #include <iomanip>
@@ -91,6 +92,9 @@ void Commands::load() {
             const std::string_view parse_{command_parse.data() + start, len};
             start = end == std::string::npos ? command_parse.size() : end+1;
             if (parse_.empty()) {continue;}
+
+            if (parse_ == "ONLY_OFFLINE") {cmd_ptr->ONLY_OFFLINE=true; continue;}
+            if (parse_ == "ONLY_ONLINE") {cmd_ptr->ONLY_ONLINE=true; continue;}
 
             if (parse_ == "LUA") {cmd_ptr->LUA=true; continue;}
             if (parse_ == "LUA_MESSAGE") {cmd_ptr->LUA_message=true; continue;}
@@ -204,7 +208,7 @@ int lua_get_time(lua_State* lua) {
     return 1;
 }
 
-std::string Commands::check(const std::string& command, const TwitchMessage& message, const std::string& cut_message) {
+std::string Commands::check(const std::string& command, const TwitchMessage& message, const std::string& cut_message, const ChannelContext& context) {
     const auto cmd_id_it = command_lookup.find(command);
     if (cmd_id_it == command_lookup.end()) {return "";}
     const Commands::CommandId cmd_id = cmd_id_it->second;
@@ -216,13 +220,16 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     }
     Command* cmd = &cmd_it->second;
 
+    if (cmd->ONLY_OFFLINE && context.online) {return " ";}
+    if (cmd->ONLY_ONLINE && !context.online) {return " ";}
+
     // cooldown
     const auto now = std::chrono::steady_clock::now();
     auto last_used_it = cooldowns.find(cmd_id);
     if (last_used_it == cooldowns.end()) {
         cooldowns.emplace(cmd_id, now);
     } else {
-        if (now - last_used_it->second < cmd->cooldown) {return "";}
+        if (now - last_used_it->second < cmd->cooldown) {return " ";}
         last_used_it->second = now;
     }
 
@@ -237,14 +244,14 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
             if (user_last_use_it == user_uses.end()) {
                 user_uses.emplace(cmd_id, now);
             } else {
-                if (now - user_last_use_it->second < cmd->user_cooldown) {return "";}
+                if (now - user_last_use_it->second < cmd->user_cooldown) {return " ";}
                 user_last_use_it->second = now;
             }
         }
     } 
 
     if (!cmd->LUA) {return cmd->command;}
-    if (cmd->lua_ref == LUA_NOREF) {return "";}
+    if (cmd->lua_ref == LUA_NOREF) {return " ";}
     // lua varbiles
 
     lua_newtable(lua_);
@@ -298,6 +305,10 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     }
     lua_setglobal(lua_, "MSG");
 
+    lua_newtable(lua_);
+    set_field("online", context.online);
+    lua_setglobal(lua_, "CONTEXT");
+
     std::size_t random = std::hash<std::string>{}(message.id);  // pseudorandom
     set_var("RANDOM", static_cast<lua_Integer>(random));
 
@@ -312,13 +323,13 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     if (lua_pcall(lua_, 0, 1, 0) != LUA_OK) {
         std::cerr << "Command lua runtime error: " << lua_tostring(lua_, -1) << '\n';
         lua_pop(lua_, 1);
-        return "";
+        return " ";
     }
 
     size_t len;
     const char* result = lua_tolstring(lua_, -1, &len);
     if (!result) {
-        lua_pop(lua_, 1); return "";
+        lua_pop(lua_, 1); return " ";
     }
 
     std::string out(result, len);

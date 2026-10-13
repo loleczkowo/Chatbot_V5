@@ -1,7 +1,11 @@
+#include "types.hpp"
 #include "twitch_auth.hpp"
 #include "twitch_chat.hpp"
 #include "twitch_api.hpp"
+#include "twitch_eventsub.hpp"
 #include "cmd_parser.hpp"
+
+#include <json/json.h>
 
 #include <iostream>
 #include <fstream>
@@ -12,6 +16,12 @@
 #include <filesystem>
 
 
+std::vector<std::string> channels;
+std::unordered_set<std::string> chatbots;
+std::unordered_map<std::string, ChannelContext> channels_contexts;
+std::unordered_map<std::string, Commands> channels_commands;
+
+
 void debug_on_msg(const TwitchMessage& message) {
     if (message.responding) {
         std::cout << "  > "
@@ -20,25 +30,33 @@ void debug_on_msg(const TwitchMessage& message) {
     }
     std::cout << message.author.display_name << ": "
               << message.message << std::endl;
-    // for (const auto& badge : message.author.badges) {std::cout << badge.first << " ";}
-    // std::cout << std::endl;
+    // for (const auto& badge : message.author.badges) {std::cout << badge.first << " ";} std::cout << std::endl;
+}
 
-    // std::cout << message.id << std::endl;
+void stream_online(const Json::Value& payload) {
+    const std::string type = payload["subscription"]["type"].asString();
+    const std::string login = payload["event"]["broadcaster_user_login"].asString();
+    if (type == "stream.online") {
+        channels_contexts[login].online = true;
+    } else if (type == "stream.offline") {
+        channels_contexts[login].online = false;
+    }
 }
 
 void chat_commands(
-    const TwitchMessage& message, TwitchApi& api,
-    std::unordered_map<std::string, Commands>& channels_commands,
-    const std::unordered_set<std::string>& chatbots
+    const TwitchMessage& message, TwitchApi& api
 )
 {
     // prevent bots from using commands
-    if (chatbots.find(message.author.login) != chatbots.end()) {return;}
-    if (message.author.badges.find("bot") != message.author.badges.end()) {return;}
+    if (chatbots.find(message.author.login) != chatbots.end()) return;
+    if (message.author.badges.find("bot") != message.author.badges.end()) return;
 
     auto it = channels_commands.find(message.room_name);
-    if (it == channels_commands.end()) {return;}  // if no config file then all cmds disabled
+    if (it == channels_commands.end()) return;  // if no config file then all cmds disabled
     Commands& commands = it->second; 
+    auto context_it = channels_contexts.find(message.room_name);
+    ChannelContext context{};
+    if (context_it != channels_contexts.end()) context = context_it->second; 
 
     std::string message_str = message.message;
     if (message.responding) {message_str.erase(0, message.reply_msg.parent_user_login.length()+2);}
@@ -56,7 +74,7 @@ void chat_commands(
         cut_msg = message_str.substr(first_space_+1);
     }
 
-    const std::string command_return = commands.check(cmd_, message, cut_msg);
+    const std::string command_return = commands.check(cmd_, message, cut_msg, context);
     if (command_return == " ") {return;}
     
     const std::string respond_to = message.responding ? message.reply_msg.parent_message_id : message.id;
@@ -128,8 +146,6 @@ int main()
     std::string oauth_port_string;
     int oauth_port;
     std::string oauth_redirect;
-    std::vector<std::string> channels;
-    std::unordered_set<std::string> chatbots;
     while (std::getline(config_file, line)) {
         const std::size_t equal_pos = line.find("=");
         if (equal_pos == std::string::npos) {continue;}
@@ -171,17 +187,6 @@ int main()
     }
     if (missing) {return 1;}
 
-    std::cout << "Loading commands for; ";
-    std::unordered_map<std::string, Commands> channels_commands;
-    for (const std::string& channel : channels) {
-        std::cout << channel << " " << std::flush;
-        const std::string commands_path = "commands/"+channel+".txt";
-        struct stat buffer;
-        if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
-        channels_commands.try_emplace(channel, commands_path);
-    }
-    std::cout << std::endl;
-
     TwitchAuth auth(
         client_id,
         client_secret,
@@ -202,6 +207,24 @@ int main()
     std::string token = auth.get_token();
     std::cout << "fetching bot token..." << std::endl;
     TwitchApi twitch_api (auth, bot_nickname);
+
+    std::cout << "Fetching channel contexts." << std::endl;
+    for (const std::string& channel : channels) {
+        channels_contexts.try_emplace(channel);
+    }
+    Json::Value streams = twitch_api.get_streams(channels);
+    for (auto stream : streams) {
+        channels_contexts[stream["user_login"].asString()].online = stream["type"].asString() == "live";
+    }
+    std::cout << "Loading commands for; ";
+    for (const std::string& channel : channels) {
+        std::cout << channel << " " << std::flush;
+        const std::string commands_path = "commands/"+channel+".txt";
+        struct stat buffer;
+        if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
+        channels_commands.try_emplace(channel, commands_path);
+    } std::cout << std::endl;
+
     const std::string bot_id = twitch_api.get_id(bot_nickname, true);
     bool bot_token_exists = false;
     bool bot_token_has_scopes = false;
@@ -228,11 +251,7 @@ int main()
         std::cout << "connecting twitch chat" << std::endl;
         twitch_chat.emplace(auth, bot_nickname, bot_id, channels);       
         twitch_chat->on_message(debug_on_msg);
-        twitch_chat->on_message(
-            [&twitch_api, &chatbots, &channels_commands](const TwitchMessage& message) {
-                chat_commands(message, twitch_api, channels_commands, chatbots);
-            }
-        );
+        twitch_chat->on_message([&twitch_api](const TwitchMessage& message) {chat_commands(message, twitch_api);});
         try {
             if (!twitch_chat->connect()) {
                 std::cerr << "Failed to connect to twitch" << std::endl; return 2;
@@ -241,6 +260,11 @@ int main()
             std::cerr << "Failed to connect chat; " << error.what() << std::endl;
         }
     }
+    std::cout << "Connecting to twitch EventSub" << std::endl;
+    std::unique_ptr<TwitchEventSub> twitch_event_sub = std::make_unique<TwitchEventSub>();
+    twitch_event_sub->connect();
+    twitch_event_sub->on_message(stream_online);
+    bool subbed_events = false;
     // std::cout << twitch_api.test() << std::endl;
     std::atomic<bool> running = true;
     std::string command;
@@ -281,6 +305,49 @@ int main()
             std::cerr << "Restarting oauth2 server (died)" << std::endl;
             auth.start_oauth2_server();
         }
+        if (!twitch_event_sub->swap.empty()) {
+            std::cout << "Swapping eventsub server to " << twitch_event_sub->swap << std::endl;
+            std::unique_ptr<TwitchEventSub> next = std::make_unique<TwitchEventSub>(twitch_event_sub->callbacks(), twitch_event_sub->swap);
+            next->connect();
+            int slept = 0;
+            while (!next->welcomed()) {
+                sleep(1);
+                slept++;
+                if (slept >= 35) {
+                    std::cout << "Swapping eventsub; failed swap; timeouted." << std::endl;
+                    twitch_event_sub->swap.clear();
+                    break;
+                }
+            }
+            if (slept < 35) {
+                std::cout << "Swapping eventsub; disconnecting old one." << std::endl;
+                twitch_event_sub->disconnect();
+                twitch_event_sub = std::move(next);
+                subbed_events = false;
+                std::cout << "Swapping eventsub; successful." << std::endl;
+            }
+        }
+        else if (!twitch_event_sub->is_connected()) {
+            std::cout << "Recconecting eventsub" << std::endl;
+            twitch_event_sub->connect();
+            subbed_events = false;
+        }
+        if (!subbed_events && twitch_event_sub->welcomed()) {
+            std::cout << "Subscribing Eventsubs" << std::endl;
+            const std::string& session_id = twitch_event_sub->connection_id();
+            for (const std::string& channel : channels) {
+                const std::string id = twitch_api.get_id(channel);
+                twitch_api.eventsub_subscribe(
+                    "stream.online", "1", "{\"broadcaster_user_id\":\""+id+"\"}",
+                    session_id, id, {"NO"}, {}
+                );
+                twitch_api.eventsub_subscribe(
+                    "stream.offline", "1", "{\"broadcaster_user_id\":\""+id+"\"}",
+                    session_id, id, {"NO"}, {}
+                );
+            }
+            subbed_events = true;
+        }
 
         const time_t now = std::time(nullptr);
         if (now - last_oauth_check > 15*60) {
@@ -305,6 +372,8 @@ int main()
         std::cout << "disconecting twitch chat" << std::endl;
         twitch_chat->disconnect();
     }
+    std::cout << "stopping twitch eventsub" << std::endl;
+    twitch_event_sub->disconnect();
     std::cout << "stopping oauth2 server" << std::endl;
     auth.stop_oauth2_server();
     return 0;

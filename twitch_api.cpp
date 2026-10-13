@@ -28,9 +28,9 @@ TwitchApi::TwitchApi(
     std::string bot_nickname
 )
     : auth_(auth),
-    bot_nickname_(bot_nickname),
     curl_(curl_easy_init())
 {
+    bot_id_ = get_id(bot_nickname);
 }
 
 TwitchApi::~TwitchApi() {
@@ -38,26 +38,83 @@ TwitchApi::~TwitchApi() {
 }
 
 
+bool channel_token(std::string& token, TwitchAuth& auth_, const std::unordered_set<std::string>& scopes, const std::string& id) {
+    const TwitchLockedOAuth oauth = auth_.get_oauth(id);
+    if (oauth == nullptr) return false;
+    if (!oauth->check_scopes(scopes)) return false;
+    token = oauth->get_token(); return true;
+}
+enum TokenSource {
+    NO_TOKEN, BOT_TOKEN, CHANNEL_TOKEN, APP_TOKEN
+};
+
+
+Json::Value TwitchApi::get_streams(const std::vector<std::string>& user_logins) {
+    Json::Value streams;
+    for (size_t i = 0; i < user_logins.size(); i += 100) {
+        std::string request_params = "first=100";  // twitch limit for 2026
+        for (size_t j = i; j < std::min(i+100, user_logins.size()); j++) {
+            request_params += "&user_login="+user_logins[j];
+        }
+        Json::Value result = get("https://api.twitch.tv/helix/streams?"+request_params);
+        for (auto stream_data : result["data"]) {
+            streams.append(stream_data);
+        }
+    }
+    return streams;
+}
 Json::Value TwitchApi::send_message(const std::string& room_id, const std::string& message) {
-    const std::string sender_id = get_id(bot_nickname_, true);
     const std::string body =
         "{"
             "\"broadcaster_id\":\"" + room_id + "\","
-            "\"sender_id\":\"" + sender_id + "\","
+            "\"sender_id\":\"" + bot_id_ + "\","
             "\"message\":" + json_escape(message) +
         "}";
     return post("https://api.twitch.tv/helix/chat/messages", body, room_id, {"channel:bot"}, {"user:write:chat"});
 }
 Json::Value TwitchApi::send_message(const std::string& room_id, const std::string& message, const std::string& reply_id) {
-    const std::string sender_id = get_id(bot_nickname_, true);
     const std::string body =
         "{"
             "\"broadcaster_id\":\"" + room_id + "\","
-            "\"sender_id\":\"" + sender_id + "\","
+            "\"sender_id\":\"" + bot_id_ + "\","
             "\"reply_parent_message_id\":\"" + reply_id + "\"," +
             "\"message\":" + json_escape(message) +
         "}";
     return post("https://api.twitch.tv/helix/chat/messages", body, room_id, {"channel:bot"}, {"user:write:chat"});
+}
+void TwitchApi::eventsub_subscribe(
+    const std::string& type, const std::string& version, const std::string& condition,
+    const std::string& session_id, const std::string& room_id,
+    const std::unordered_set<std::string>& scopes, const std::unordered_set<std::string>& bot_scopes
+) {
+    const std::string body = 
+        "{"
+            "\"type\":\"" + type + "\","
+            "\"version\":\"" + version + "\","
+            "\"condition\":" + condition + ","
+            "\"transport\":{"
+                "\"method\":\"websocket\","
+                "\"session_id\":\"" + session_id + "\""
+            "}"
+        "}";
+    Json::Value root;
+    for (int i=0;i<2;i++) {
+        long status_code = 0;
+        std::string token;
+        TokenSource source = NO_TOKEN;
+        if      (channel_token(token, auth_, scopes, room_id)) source = CHANNEL_TOKEN;
+        else if (channel_token(token, auth_, bot_scopes, bot_id_)) source = BOT_TOKEN;
+        else {std::cerr << "TwitchApi-Eventsub; no matching token for " << type << "\n"; return;}
+        root = raw_post("https://api.twitch.tv/helix/eventsub/subscriptions", token, body, status_code);
+        if (status_code == 401) {
+            if (source == CHANNEL_TOKEN) auth_.oauth_check(room_id);
+            if (source == BOT_TOKEN)     auth_.oauth_check(bot_id_);
+        } else {break;}
+    }
+    if (!root.isMember("status")) return;
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = ""; // If you want whitespace-less output
+    std::cout << Json::writeString(builder, root) << std::endl;
 }
 
 
@@ -84,6 +141,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 
 
 Json::Value TwitchApi::get(const std::string& link, const std::string& working_channel_id, const std::unordered_set<std::string>& scopes, const std::unordered_set<std::string>& bot_scopes) {
+    // for chat specific requests.
     Json::Value root;
     std::string use_token;
     bool using_bot_oauth = false;
@@ -94,7 +152,7 @@ Json::Value TwitchApi::get(const std::string& link, const std::string& working_c
     }
     if (!scopes.empty() && !channel_has_scopes) {
         // We do not have the needed channel oauth so we fallback to bot's user token (If we have one)
-        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(bot_id_);
         if (bot_oauth == nullptr || !bot_oauth->check_scopes(bot_scopes)) {
             std::cerr << "Missing needed OAuth2 tokens for request; " << link << std::endl << std::endl;
             return root;
@@ -109,8 +167,8 @@ Json::Value TwitchApi::get(const std::string& link, const std::string& working_c
     if (status_code == 401) {
         std::cout << "Twitch api fail by wrong token, retrying" << std::endl;
         if (using_bot_oauth) {
-            auth_.oauth_check(get_id(bot_nickname_, true));
-            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+            auth_.oauth_check(bot_id_);
+            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(bot_id_);
             if (bot_oauth==nullptr) {return root;}
             use_token = bot_oauth->get_token();
         } else {
@@ -155,6 +213,7 @@ Json::Value TwitchApi::raw_get(const std::string& link, const std::string& token
     return root;
 }
 
+
 Json::Value TwitchApi::post(const std::string& link, const std::string& body, const std::string& working_channel_id, const std::unordered_set<std::string>& scopes, const std::unordered_set<std::string>& bot_scopes) {
     Json::Value root;
     std::string use_token;
@@ -166,7 +225,7 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
     }
     if (!scopes.empty() && !channel_has_scopes) {
         // We do not have the needed channel oauth so we fallback to bot's user token (If we have one)
-        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+        const TwitchLockedOAuth bot_oauth = auth_.get_oauth(bot_id_);
         if (bot_oauth == nullptr || !bot_oauth->check_scopes(bot_scopes)) {
             std::cerr << "Missing needed OAuth2 tokens for request; " << link << std::endl << std::endl;
             return root;
@@ -181,8 +240,8 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
     if (status_code == 401) {
         std::cerr << "Twitch api fail by wrong token, retrying" << std::endl;
         if (using_bot_oauth) {
-            auth_.oauth_check(get_id(bot_nickname_, true));
-            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(get_id(bot_nickname_, true));
+            auth_.oauth_check(bot_id_);
+            const TwitchLockedOAuth bot_oauth = auth_.get_oauth(bot_id_);
             if (bot_oauth==nullptr) {return root;}
             use_token = bot_oauth->get_token();
         } else {
@@ -194,6 +253,7 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
     }
     return root;
 }
+
 
 Json::Value TwitchApi::raw_post(const std::string& link, const std::string& token, const std::string& body, long& status_code) {
     Json::Value root;

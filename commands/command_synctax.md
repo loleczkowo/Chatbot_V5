@@ -17,6 +17,8 @@ Lines that are empty or start with `//` are ignored.
 The current options are:
 - `COOLDOWN=123`
 - `USER_COOLDOWN=69`
+- `ONLY_OFFLINE`
+- `ONLY_ONLINE`
 - `LUA`
 - `LUA_MESSAGE`
 - `LUA_AUTHOR`
@@ -44,7 +46,7 @@ Example:
 
 The always available Lua values/functions are:
 - `RANDOM`
-- `TIME("Time/Zone")`
+- `TIME("Time/Zone")`  NEEDS to be a valid timezone, no error handling on that.
 - `TIMESTAMP` (milliseconds)
 
 Example:
@@ -122,6 +124,10 @@ For example the command:
 !hello|LUA|LUA_AUTHOR^"Hello " .. MSG.author.display_name
 ```
 Does not include message/reply/badge info as it does not need it.
+
+## Lua Channel context
+To get if a channel is online use;
+`CONTEXT.online`
 
 ## Disabling a command
 
