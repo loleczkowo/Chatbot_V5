@@ -15,7 +15,6 @@
 #include <string>
 #include <vector>
 
-//using ErrorCode = boost::system::error_code;
 
 TwitchEventSub::TwitchEventSub()
     : ssl_context_(boost::asio::ssl::context::tls_client)
