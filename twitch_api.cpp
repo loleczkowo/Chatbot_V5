@@ -104,7 +104,7 @@ void TwitchApi::set_stream(const std::string& room_id, const std::string& catego
         long status_code = 0;
         std::string token;
         if (!channel_token(token, auth_, {"channel:manage:broadcast"}, room_id)) {
-            std::cerr << "TwitchApi; no matching token for channel:manage:broadcast category for " << room_id << '\n'; return;
+            std::cerr << "TwitchApi; no matching token for channel:manage:broadcast (category) for " << room_id << '\n'; return;
         }       
         raw_post("https://api.twitch.tv/helix/channels?broadcaster_id="+room_id, token, body, status_code, "PATCH");
         if (status_code == 401) {

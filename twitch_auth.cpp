@@ -436,11 +436,12 @@ std::string TwitchAuth::oauth2_botauth() const {
         "moderator:read:suspicious_users moderator:manage:suspicious_users moderator:read:unban_requests "
         "moderator:manage:unban_requests moderator:read:vips moderator:read:warnings moderator:manage:warnings");
 }
-std::string TwitchAuth::oauth2_broadcasterauth() const {
+std::string TwitchAuth::oauth2_broadcasterauth(const std::string& scopes) const {
+    const std::string auth_scopes = scopes.empty() ? "channel:bot" : "channel:bot " + scopes;
     return "https://id.twitch.tv/oauth2/authorize"
            "?client_id=" + url_encode(client_id_) +
            "&redirect_uri=" + url_encode(redirect_uri()) +
-           "&response_type=code&scope=" + url_encode("channel:bot");
+           "&response_type=code&scope=" + url_encode(auth_scopes);
 }
 std::string TwitchAuth::redirect_uri() const {
     if (!redirect_uri_.empty()) {

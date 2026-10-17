@@ -238,9 +238,10 @@ int main()
         }
     }
     std::cout << "Tokens acquired." << std::endl;
-    std::cout << "OAUTH2 links;" << std::endl <<
-        "  bot account; " << auth.oauth2_botauth() << std::endl <<
-        "  broadcaster; " << auth.oauth2_broadcasterauth() << std::endl;
+    std::cout << "OAUTH2 links;\n"
+        "  bot account; " << auth.oauth2_botauth() << "\n"
+        "  broadcaster; " << auth.oauth2_broadcasterauth() << "\n"
+        "  broadcaster \\w api support; " << auth.oauth2_broadcasterauth("channel:manage:broadcast") << std::endl;
 
     bool chat_enabled = false;
     std::optional<TwitchChat> twitch_chat;

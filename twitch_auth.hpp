@@ -82,7 +82,7 @@ public:
     bool is_oauth2_server_alive();
     // oauth2 auth links
     std::string oauth2_botauth() const;
-    std::string oauth2_broadcasterauth() const;
+    std::string oauth2_broadcasterauth(const std::string& scopes = "") const;
     std::string redirect_uri() const;
 
     const std::string& client_id() const;
