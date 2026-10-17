@@ -111,18 +111,18 @@ void Commands::load() {
             start = end == std::string::npos ? command_parse.size() : end+1;
             if (parse_.empty()) {continue;}
 
-            if (parse_ == "ONLY_OFFLINE") {cmd_ptr->ONLY_OFFLINE=true; continue;}
-            if (parse_ == "ONLY_ONLINE") {cmd_ptr->ONLY_ONLINE=true; continue;}
-            if (parse_ == "ONLY_MOD") {cmd_ptr->ONLY_ONLINE=true; continue;}
-            if (parse_ == "ONLY_VIP") {cmd_ptr->ONLY_ONLINE=true; continue;}
-            if (parse_ == "ONLY_BROADCASTER") {cmd_ptr->ONLY_ONLINE=true; continue;}
-            if (parse_ == "ONLY_SUB") {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_OFFLINE")       {cmd_ptr->ONLY_OFFLINE=true; continue;}
+            if (parse_ == "ONLY_ONLINE")        {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_BROADCASTER")   {cmd_ptr->ONLY_BROADCASTER=true; continue;}
+            if (parse_ == "ONLY_MOD")           {cmd_ptr->ONLY_MOD=true; continue;}
+            if (parse_ == "ONLY_VIP")           {cmd_ptr->ONLY_VIP=true; continue;}
+            if (parse_ == "ONLY_SUB")           {cmd_ptr->ONLY_SUB=true; continue;}
 
-            if (parse_ == "LUA") {cmd_ptr->LUA=true; continue;}
-            if (parse_ == "LUA_MESSAGE") {cmd_ptr->LUA_message=true; continue;}
+            if (parse_ == "LUA")        {cmd_ptr->LUA=true; continue;}
+            if (parse_ == "LUA_MESSAGE"){cmd_ptr->LUA_message=true; continue;}
             if (parse_ == "LUA_AUTHOR") {cmd_ptr->LUA_author=true; continue;}
             if (parse_ == "LUA_BADGES") {cmd_ptr->LUA_badges=true; continue;}
-            if (parse_ == "LUA_REPLY") {cmd_ptr->LUA_reply=true; continue;}
+            if (parse_ == "LUA_REPLY")  {cmd_ptr->LUA_reply=true; continue;}
 
             if (parse_ == "LUA_NORETURN") {cmd_ptr->LUA_noreturn=true; continue;}
 
