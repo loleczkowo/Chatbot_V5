@@ -113,6 +113,10 @@ void Commands::load() {
 
             if (parse_ == "ONLY_OFFLINE") {cmd_ptr->ONLY_OFFLINE=true; continue;}
             if (parse_ == "ONLY_ONLINE") {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_MOD") {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_VIP") {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_BROADCASTER") {cmd_ptr->ONLY_ONLINE=true; continue;}
+            if (parse_ == "ONLY_SUB") {cmd_ptr->ONLY_ONLINE=true; continue;}
 
             if (parse_ == "LUA") {cmd_ptr->LUA=true; continue;}
             if (parse_ == "LUA_MESSAGE") {cmd_ptr->LUA_message=true; continue;}
@@ -208,7 +212,7 @@ void Commands::set_field(const char* name, lua_Integer value) {
 
 std::string Commands::check(const std::string& command, const TwitchMessage& message, const std::string& cut_message, const ChannelContext& context) {
     const auto cmd_id_it = command_lookup.find(command);
-    if (cmd_id_it == command_lookup.end()) {return "";}
+    if (cmd_id_it == command_lookup.end()) return "";
     const Commands::CommandId cmd_id = cmd_id_it->second;
     const auto cmd_it = commands.find(cmd_id);
     if (cmd_it == commands.end()) {
@@ -218,8 +222,17 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     }
     Command* cmd = &cmd_it->second;
 
-    if (cmd->ONLY_OFFLINE && context.online) {return " ";}
-    if (cmd->ONLY_ONLINE && !context.online) {return " ";}
+    if (cmd->ONLY_OFFLINE && context.online) return " ";
+    if (cmd->ONLY_ONLINE && !context.online) return " ";
+    const TwitchAuthor& author = message.author;
+    const bool can_mod = author.mod || author.broadcaster;
+    const bool can_vip = author.vip || can_mod;
+    const bool can_sub = author.sub || can_vip;
+
+    if (cmd->ONLY_BROADCASTER && !author.broadcaster) return " ";
+    if (cmd->ONLY_MOD && !can_mod) return " ";
+    if (cmd->ONLY_VIP && !can_vip) return " ";
+    if (cmd->ONLY_SUB && !can_sub) return " ";
 
     // cooldown
     const auto now = std::chrono::steady_clock::now();
@@ -232,9 +245,9 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     }
 
     if (cmd->user_cooldown != std::chrono::seconds::zero()) {
-        auto user_uses_it = user_cooldowns.find(message.author.user_id);
+        auto user_uses_it = user_cooldowns.find(author.user_id);
         if (user_uses_it == user_cooldowns.end()) {
-            user_uses_it = user_cooldowns.try_emplace(message.author.user_id).first;
+            user_uses_it = user_cooldowns.try_emplace(author.user_id).first;
             user_uses_it->second.emplace(cmd_id, now);
         } else {
             std::unordered_map<Commands::CommandId, std::chrono::steady_clock::time_point>& user_uses = user_uses_it->second;
@@ -265,20 +278,20 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
     if (cmd->LUA_author || cmd->LUA_badges) {
         lua_newtable(lua_);
         if (cmd->LUA_author) {
-            set_field("login", message.author.login);
-            set_field("display_name", message.author.display_name);
-            set_field("user_id", message.author.user_id);
-            set_field("color", message.author.color);
-            set_field("returning_chatter", message.author.returning_chatter);
-            set_field("sub", message.author.sub);
-            set_field("vip", message.author.vip);
-            set_field("mod", message.author.mod);
-            set_field("turbo", message.author.turbo);
-            set_field("broadcaster", message.author.broadcaster);
+            set_field("login", author.login);
+            set_field("display_name", author.display_name);
+            set_field("user_id", author.user_id);
+            set_field("color", author.color);
+            set_field("returning_chatter", author.returning_chatter);
+            set_field("sub", author.sub);
+            set_field("vip", author.vip);
+            set_field("mod", author.mod);
+            set_field("turbo", author.turbo);
+            set_field("broadcaster", author.broadcaster);
         }
         if (cmd->LUA_badges) {
             lua_newtable(lua_);
-            for (const auto& [name, badge] : message.author.badges) {
+            for (const auto& [name, badge] : author.badges) {
                 lua_newtable(lua_);
                 set_field("version", badge.version);
                 set_field("info", badge.info);

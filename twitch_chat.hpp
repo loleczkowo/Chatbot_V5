@@ -23,12 +23,12 @@ struct TwitchAuthor {
     std::string color;
 
     // bool is_follower = false;
-    bool returning_chatter = false;
-    bool sub = false;
-    bool vip = false;
-    bool mod = false;
-    bool turbo = false;
-    bool broadcaster = false;
+    bool returning_chatter  :1 = false;
+    bool sub                :1 = false;
+    bool vip                :1 = false;
+    bool mod                :1 = false;
+    bool turbo              :1 = false;
+    bool broadcaster        :1 = false;
     std::unordered_map<std::string, TwitchBadgeInfo> badges;
 };
 struct TwitchReplyInfo {

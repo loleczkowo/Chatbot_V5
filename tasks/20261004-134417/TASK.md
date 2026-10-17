@@ -1,6 +1,6 @@
 # Offline/Online commands only
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: feature,eventsub,commands
 

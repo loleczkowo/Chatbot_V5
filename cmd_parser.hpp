@@ -19,16 +19,20 @@ public:
         std::chrono::seconds cooldown;
         std::chrono::seconds user_cooldown{};
 
-        bool ONLY_OFFLINE{};
-        bool ONLY_ONLINE{};
+        bool ONLY_OFFLINE       :1{};
+        bool ONLY_ONLINE        :1{};
+        bool ONLY_BROADCASTER   :1{};
+        bool ONLY_MOD           :1{};
+        bool ONLY_VIP           :1{};
+        bool ONLY_SUB           :1{};
 
-        bool LUA{};
-        bool LUA_message{};
-        bool LUA_author{};
-        bool LUA_badges{};
-        bool LUA_reply{};
+        bool LUA                :1{};
+        bool LUA_message        :1{};
+        bool LUA_author         :1{};
+        bool LUA_badges         :1{};
+        bool LUA_reply          :1{};
 
-        bool LUA_noreturn{};
+        bool LUA_noreturn       :1{};
 
         int lua_ref = LUA_NOREF;
     };
