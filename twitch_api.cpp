@@ -19,8 +19,10 @@
 //        "}";
 //    return post("https://api.twitch.tv/helix/chat/messages", body);
 //}
-
-
+std::string TwitchApi::test() {
+    set_stream(get_id("loleczkowo"), get_category_id("Forts"), "test");
+    return "";
+}
 
 
 TwitchApi::TwitchApi(
@@ -63,6 +65,13 @@ Json::Value TwitchApi::get_streams(const std::vector<std::string>& user_logins) 
     }
     return streams;
 }
+std::string TwitchApi::get_category_id(const std::string& category) {
+    Json::Value result = get("https://api.twitch.tv/helix/games?name="+url_encode(category));
+    if (!result.isMember("data")) return "";
+    if (result["data"].empty()) return "";
+    if (!result["data"][0].isMember("id")) return "";
+    return result["data"][0]["id"].asString();
+}
 Json::Value TwitchApi::send_message(const std::string& room_id, const std::string& message) {
     const std::string body =
         "{"
@@ -81,6 +90,28 @@ Json::Value TwitchApi::send_message(const std::string& room_id, const std::strin
             "\"message\":" + json_escape(message) +
         "}";
     return post("https://api.twitch.tv/helix/chat/messages", body, room_id, {"channel:bot"}, {"user:write:chat"});
+}
+void TwitchApi::set_stream(const std::string& room_id, const std::string& category_id, const std::string& title) {
+    if (category_id.empty() && title.empty()) {return;}
+    std::string body = "{";
+    if (!category_id.empty()) {
+        body += "\"game_id\":\""+category_id+'"';
+        if (!title.empty()) body += ',';
+    }
+    if (!title.empty()) body += "\"title\":"+json_escape(title);
+    body += '}';
+    for (int i=0;i<2;i++) {
+        long status_code = 0;
+        std::string token;
+        if (!channel_token(token, auth_, {"channel:manage:broadcast"}, room_id)) {
+            std::cerr << "TwitchApi; no matching token for channel:manage:broadcast category for " << room_id << '\n'; return;
+        }       
+        raw_post("https://api.twitch.tv/helix/channels?broadcaster_id="+room_id, token, body, status_code, "PATCH");
+        if (status_code == 401) {
+            auth_.oauth_check(room_id);
+        } else {break;}
+    }
+
 }
 void TwitchApi::eventsub_subscribe(
     const std::string& type, const std::string& version, const std::string& condition,
@@ -255,7 +286,7 @@ Json::Value TwitchApi::post(const std::string& link, const std::string& body, co
 }
 
 
-Json::Value TwitchApi::raw_post(const std::string& link, const std::string& token, const std::string& body, long& status_code) {
+Json::Value TwitchApi::raw_post(const std::string& link, const std::string& token, const std::string& body, long& status_code, const std::string& method) {
     Json::Value root;
     
     if (curl_ == nullptr) {return root;}
@@ -274,6 +305,7 @@ Json::Value TwitchApi::raw_post(const std::string& link, const std::string& toke
 
     curl_easy_setopt(curl_, CURLOPT_URL, link.c_str());
     curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl_, CURLOPT_CUSTOMREQUEST, method.c_str());
     curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, body.c_str());
     curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &readBuffer);
@@ -337,4 +369,18 @@ std::string TwitchApi::json_escape(const std::string& unescaped)
 
     out << '"';
     return out.str();
+}
+std::string TwitchApi::url_encode(const std::string& str) {
+    const char* hex = "0123456789ABCDEF";
+    std::string out;
+    for (unsigned char c : str) {
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            out += c;
+        } else {
+            out += '%';
+            out += hex[c >> 4];
+            out += hex[c & 0x0F];
+        }
+    }
+    return out;
 }

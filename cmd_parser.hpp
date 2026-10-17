@@ -41,6 +41,12 @@ public:
 
     void load(); // loads/reloads load_path    
     std::string check(const std::string& command, const TwitchMessage& message, const std::string& cut_message, const ChannelContext& context);
+    void add_lib(const std::string& name, void* data,  const luaL_Reg* lib, int lib_count) {
+        lua_createtable(lua_, 0, lib_count);
+        lua_pushlightuserdata(lua_, data);
+        luaL_setfuncs(lua_, lib, 1);
+        lua_setglobal(lua_, name.c_str());
+    }
     int clean_cooldowns();  // cleans user_cooldowns of unnecesery users.
     const std::unordered_map<CommandId, Command>& get_commands() const;
     const std::vector<std::string>& get_commands_order() const;

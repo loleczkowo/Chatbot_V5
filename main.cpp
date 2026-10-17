@@ -2,6 +2,7 @@
 #include "twitch_auth.hpp"
 #include "twitch_chat.hpp"
 #include "twitch_api.hpp"
+#include "lua_apis.hpp"
 #include "twitch_eventsub.hpp"
 #include "cmd_parser.hpp"
 
@@ -222,7 +223,8 @@ int main()
         const std::string commands_path = "commands/"+channel+".txt";
         struct stat buffer;
         if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
-        channels_commands.try_emplace(channel, commands_path);
+        Commands& commands = channels_commands.try_emplace(channel, commands_path).first->second;
+        commands.add_lib("twitch_api", &twitch_api, LuaTwitchApi::functions, LuaTwitchApi::func_count);
     } std::cout << std::endl;
 
     const std::string bot_id = twitch_api.get_id(bot_nickname, true);

@@ -14,17 +14,35 @@
 #include <algorithm>
 #include <lua.hpp>
 
+int lua_get_time(lua_State* lua) {
+    const char* timezone = luaL_checkstring(lua, 1);
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    std::chrono::zoned_time<std::chrono::system_clock::duration> zoned{timezone, now};
+    std::chrono::local_time<std::chrono::system_clock::duration> local = zoned.get_local_time();
+    std::chrono::local_days day = std::chrono::floor<std::chrono::days>(local);
+    std::chrono::hh_mm_ss<std::chrono::system_clock::duration> time{local - day};
+
+    std::ostringstream out;
+    out << std::setfill('0') << std::setw(2) << time.hours().count() << ':' << std::setw(2) << time.minutes().count();
+
+    std::string result = out.str();
+    lua_pushlstring(lua, result.data(), result.size());
+    return 1;
+}
+
 
 Commands::Commands(const std::string& load_path)
     : load_path_(std::move(load_path)),
       lua_(luaL_newstate())
 {
     luaL_openlibs(lua_);
+    lua_pushcfunction(lua_, lua_get_time);
+    lua_setglobal(lua_, "TIME");
     load();
 }
 Commands::~Commands()
 {
-    lua_close(lua_);
+    if (lua_) lua_close(lua_);
 }
 
 
@@ -188,26 +206,6 @@ void Commands::set_field(const char* name, lua_Integer value) {
 }
 
 
-std::string get_time(const std::string& timezone) {
-    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-    std::chrono::zoned_time<std::chrono::system_clock::duration> zoned{timezone, now};
-
-    std::chrono::local_time<std::chrono::system_clock::duration> local = zoned.get_local_time();
-    std::chrono::local_days day = std::chrono::floor<std::chrono::days>(local);
-
-    std::chrono::hh_mm_ss<std::chrono::system_clock::duration> time{local - day};
-
-    std::ostringstream out;
-    out << std::setfill('0') << std::setw(2) << time.hours().count() << ':' << std::setw(2) << time.minutes().count();
-    return out.str();
-}
-int lua_get_time(lua_State* lua) {
-    const char* timezone = luaL_checkstring(lua, 1);
-    const std::string time = get_time(timezone);
-    lua_pushlstring(lua, time.data(), time.size());
-    return 1;
-}
-
 std::string Commands::check(const std::string& command, const TwitchMessage& message, const std::string& cut_message, const ChannelContext& context) {
     const auto cmd_id_it = command_lookup.find(command);
     if (cmd_id_it == command_lookup.end()) {return "";}
@@ -314,8 +312,6 @@ std::string Commands::check(const std::string& command, const TwitchMessage& mes
 
     set_var("CUT_MSG", cut_message);
 
-    lua_pushcfunction(lua_, lua_get_time);
-    lua_setglobal(lua_, "TIME");
     Commands::set_var("TIMESTAMP", static_cast<lua_Integer>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()));
 
     // run code

@@ -53,6 +53,11 @@ Example:
 ```text
 !time|LUA^"Warsaw: " .. TIME("Europe/Warsaw")
 ```
+### API
+There are linked API's.
+**Twitch API**
+`twitch_api.set_category(string room_id, string category_name)` - "" if succeded, else "Category id not found"
+`twitch_api.set_title(string room_id, string title)` - ""
 
 ## LUA chat message info
 If you need the message after the command (For an example `hello world` from `!say hello world`) use `CUT_MSG`
