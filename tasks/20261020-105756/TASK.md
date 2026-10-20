@@ -1,6 +1,6 @@
 # Rare token removal on internet outage
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 400
 - TAGS: bug, critical, oauth2
 

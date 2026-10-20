@@ -15,6 +15,7 @@ public:
     enum class TwitchOAuthError {
         Ok,
         ReauthRequired,
+        Unauthorised,
         Unknown
     };
     TwitchOAuth(
@@ -27,7 +28,8 @@ public:
     TwitchOAuth(
         const Json::Value& json
     );
-    bool validate();
+    bool needs_refresh();
+    TwitchOAuthError validate();
     TwitchOAuthError refresh(const std::string& client_id, const std::string& client_secret);
     std::string save_json() const;
     void load_json(const Json::Value& json);
@@ -60,6 +62,11 @@ private:
 
 class TwitchAuth {
 public:
+    enum class TwitchAuthError {
+        Ok,
+        BadToken,
+        Unknown
+    };
     TwitchAuth(
         std::string client_id,
         std::string client_secret,
@@ -71,7 +78,8 @@ public:
     std::string get_token();
     TwitchLockedOAuth get_oauth(const std::string& user_id); 
     bool refresh_token();
-    bool validate_token();
+    TwitchAuthError validate_token();
+    bool needs_refresh();
     void oauth_check();
     void oauth_check(const std::string& user_id);
     void load_oauth();
@@ -85,7 +93,7 @@ public:
     std::string oauth2_broadcasterauth(const std::string& scopes = "") const;
     std::string redirect_uri() const;
 
-    const std::string& client_id() const;
+    const std::string& client_id() const {return client_id_;}
 private:
     std::string client_id_;
     std::string client_secret_;

@@ -132,8 +132,12 @@ TwitchOAuth::TwitchOAuth(
 {
     load_json(json);
 }
-bool TwitchOAuth::validate() {
-    if (std::time(nullptr) > expires_at_-30*60) {return false;}
+bool TwitchOAuth::needs_refresh() {
+    if (std::time(nullptr) > expires_at_-30*60) return true;
+    if (validate() == TwitchOAuthError::Ok) return false;
+    return true;
+}
+TwitchOAuth::TwitchOAuthError TwitchOAuth::validate() {
     CURL* curl = curl_easy_init();
     std::string response;
     long status = 0;
@@ -160,12 +164,11 @@ bool TwitchOAuth::validate() {
         const Json::Value json_response = parse_json(response) ;
         if (user_id_.empty()) {
             user_id_ = json_response["user_id"].asString(); 
-        } else if (json_response["user_id"].asString() != user_id_) {
-            return false;
-        }
-        return true;
+        } else if (json_response["user_id"].asString() != user_id_) return TwitchOAuthError::ReauthRequired;
+        return TwitchOAuthError::Ok;
     }
-    return false;
+    if (status == 401) return TwitchOAuthError::ReauthRequired;
+    return TwitchOAuthError::Unknown;
 }
 
 TwitchOAuth::TwitchOAuthError TwitchOAuth::refresh(const std::string& client_id, const std::string& client_secret) {
@@ -178,9 +181,8 @@ TwitchOAuth::TwitchOAuthError TwitchOAuth::refresh(const std::string& client_id,
     if (!json.isMember("access_token")) {
         const int status = json.get("status", 0).asInt();
         const std::string message = json.get("message", "").asString();
-        if (status == 400 && message == "Invalid refresh token") {
-            return TwitchOAuthError::ReauthRequired;
-        }
+        if (status == 400 && message == "Invalid refresh token") return TwitchOAuthError::ReauthRequired;
+        if (status == 401) return TwitchOAuthError::Unauthorised;
         std::cerr << "Twitch OAuth refresh failed: " + json.toStyledString();
         return TwitchOAuthError::Unknown;
     }
@@ -256,7 +258,7 @@ std::string TwitchAuth::get_token() {
         token_.clear();
         std::cout << "Re-Fetching AppToken" << std::endl;
         if (!refresh_token()) {std::cerr << "Cannot re-get AppToken" << std::endl;}
-    } else if (!validate_token()) {
+    } else if (needs_refresh()) {
         std::cout << "Fetching AppToken" << std::endl;
         if (!refresh_token()) {std::cerr << "Cannot get AppToken" << std::endl;}
     }
@@ -288,9 +290,7 @@ bool TwitchAuth::refresh_token() {
     return true;
 }
 
-
-bool TwitchAuth::validate_token() {
-    if (std::time(nullptr) > token_expires_at_-30*60) {return false;}
+TwitchAuth::TwitchAuthError TwitchAuth::validate_token() {
     CURL* curl = curl_easy_init();
     std::string response;
     long status = 0;
@@ -310,22 +310,19 @@ bool TwitchAuth::validate_token() {
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
-    if (result != CURLE_OK) {
-        throw std::runtime_error(curl_easy_strerror(result));
-    }
+    if (result != CURLE_OK) throw std::runtime_error(curl_easy_strerror(result));
     if (status==200) {
-        if (parse_json(response)["client_id"].asString() != client_id_) {
-            return false;
-        }
-        return true;
+        if (parse_json(response)["client_id"].asString() != client_id_) return TwitchAuthError::BadToken;
+        return TwitchAuthError::Ok;
     }
-    return false; 
+    if (status==401) return TwitchAuthError::BadToken;
+    return TwitchAuthError::Unknown; 
+
 }
-
-
-const std::string& TwitchAuth::client_id() const
-{
-    return client_id_;
+bool TwitchAuth::needs_refresh() {
+    if (std::time(nullptr) > token_expires_at_-30*60) return true;
+    if (validate_token() == TwitchAuthError::Ok) return false;
+    return true;
 }
 
 void TwitchAuth::oauth_check() {
@@ -335,30 +332,29 @@ void TwitchAuth::oauth_check() {
         for (auto i_oauth = OAuths_.begin(); i_oauth != OAuths_.end();) {
             TwitchOAuth& oauth = i_oauth->second;
             try { 	    
-	        if (oauth.validate()) {
-		    ++i_oauth;
-		    continue;
+	        if (!oauth.needs_refresh()) {
+                ++i_oauth; continue;
 	        }
             } catch  (const std::runtime_error& error) {
                 std::cerr << "Failed to validate OAuth for " << oauth.user_id() << ": " << error.what() << std::endl;
-                ++i_oauth;
-                continue;
+                ++i_oauth; continue;
             }
             std::cout << "Refreshing OAuth for " << oauth.user_id() << std::endl;
-            TwitchOAuth::TwitchOAuthError refresh_err = oauth.refresh(client_id_, client_secret_);
+            const TwitchOAuth::TwitchOAuthError refresh_err = oauth.refresh(client_id_, client_secret_);
             switch (refresh_err) {
             case TwitchOAuth::TwitchOAuthError::Ok:
                 updated = true;
                 ++i_oauth;
                 break;
+            case TwitchOAuth::TwitchOAuthError::Unauthorised:
+                ++i_oauth; break;
             case TwitchOAuth::TwitchOAuthError::ReauthRequired:
-                ++i_oauth;
-                break;
-            case TwitchOAuth::TwitchOAuthError::Unknown:
+                std::cout << "Refresh failed, removing oauth for " << oauth.user_id() << std::endl;
                 i_oauth = OAuths_.erase(i_oauth);
                 updated = true;
-                std::cout << "Refresh failed, removing oauth" << std::endl;
                 break;
+            case TwitchOAuth::TwitchOAuthError::Unknown:
+                ++i_oauth; break;
             }
         }
     }
@@ -372,7 +368,7 @@ void TwitchAuth::oauth_check(const std::string& user_id) {
         if (i_oauth == OAuths_.end()) {return;}
         TwitchOAuth& oauth = i_oauth->second;
         try { 	    
-	        if (oauth.validate()) {return;}
+	        if (!oauth.needs_refresh()) {return;}
         } catch  (const std::runtime_error& error) {
             std::cerr << "Failed to validate OAuth for " << oauth.user_id() << ": " << error.what() << std::endl;
             return;
@@ -381,14 +377,15 @@ void TwitchAuth::oauth_check(const std::string& user_id) {
         TwitchOAuth::TwitchOAuthError refresh_err = oauth.refresh(client_id_, client_secret_);
         switch (refresh_err) {
         case TwitchOAuth::TwitchOAuthError::Ok:
-            updated = true;
-            break;
+            updated = true; break;
+        case TwitchOAuth::TwitchOAuthError::Unauthorised:
+            ++i_oauth; break;
         case TwitchOAuth::TwitchOAuthError::ReauthRequired:
-            break;
-        case TwitchOAuth::TwitchOAuthError::Unknown:
             OAuths_.erase(i_oauth);
             updated = true;
             std::cout << "Refresh failed, removing oauth" << std::endl;
+            break;
+        case TwitchOAuth::TwitchOAuthError::Unknown:
             break;
         }
     }
@@ -609,7 +606,7 @@ void TwitchAuth::oauth_server()
         send(client_fd, response_redirect_done.c_str(), response_redirect_done.size(), 0);
         close(client_fd);
         TwitchOAuth new_oauth(response_tokenfetch);
-        if (new_oauth.validate()) {
+        if (new_oauth.validate() == TwitchOAuth::TwitchOAuthError::Ok) {
             {
                 std::lock_guard<std::mutex> lock(OAuths_mutex_);
                 std::cout << "oauth2-serv new oauth for; " << new_oauth.user_id() << std::endl;
