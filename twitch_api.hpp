@@ -1,6 +1,7 @@
 #pragma once
 
 #include "twitch_auth.hpp"
+#include "types.hpp"
 
 #include <curl/curl.h>
 #include <json/json.h>
@@ -23,6 +24,7 @@ public:
     Json::Value send_message(const std::string& room_id, const std::string& message);
     Json::Value send_message(const std::string& room_id, const std::string& message, const std::string& reply_id);
     void set_stream(const std::string& room_id, const std::string& category_id="", const std::string& title="");
+    bool run_ads(const std::string& room_id, unsigned int length, ChannelContext& channel_context);
     void eventsub_subscribe(
         const std::string& type, const std::string& version, const std::string& condition,
         const std::string& session_id, const std::string& room_id,

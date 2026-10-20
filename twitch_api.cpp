@@ -107,11 +107,37 @@ void TwitchApi::set_stream(const std::string& room_id, const std::string& catego
             std::cerr << "TwitchApi; no matching token for channel:manage:broadcast (category) for " << room_id << '\n'; return;
         }       
         raw_post("https://api.twitch.tv/helix/channels?broadcaster_id="+room_id, token, body, status_code, "PATCH");
-        if (status_code == 401) {
-            auth_.oauth_check(room_id);
-        } else {break;}
+        if (status_code == 401) {auth_.oauth_check(room_id);} else {break;}
     }
-
+}
+bool TwitchApi::run_ads(const std::string& room_id, unsigned int length, ChannelContext& channel_context) {
+    const time_t now = std::time(nullptr);
+    if (now < channel_context.next_ad) return false;
+    const std::string body =
+        "{"
+            "\"broadcaster_id\":\"" + room_id + "\","
+            "\"length\":" + std::to_string(length) +
+        "}";
+    Json::Value root;
+    long status_code = 0;
+    for (int i=0;i<2;i++) {
+        std::string token;
+        if (!channel_token(token, auth_, {"channel:edit:commercial"}, room_id)) {
+            std::cerr << "TwitchApi; no matching token for channel:edit:commercial (run ads) for " << room_id << '\n'; return false;
+        }
+        root = raw_post("https://api.twitch.tv/helix/channels/commercial", token, body, status_code);
+        if (status_code == 401) {auth_.oauth_check(room_id);} else {break;}
+    }
+    Json::Value data;
+    if (root.isMember("data") && !root["data"].empty()) data = root["data"][0];
+    if (data.isMember("retry_after")) channel_context.next_ad = data["retry_after"].asInt64()+now;
+    if (status_code == 400) {
+        std::cout << "TwitchApi-run_ads; Warning 400; ";
+        if (data.isMember("message")) {std::cout << data["message"].asString() << std::endl;}
+        else {std::cout << root << std::endl;}
+    }
+    if (status_code != 200) return false;
+    return true;
 }
 void TwitchApi::eventsub_subscribe(
     const std::string& type, const std::string& version, const std::string& condition,

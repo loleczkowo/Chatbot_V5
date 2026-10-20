@@ -8,12 +8,14 @@
 
 #include <json/json.h>
 
+#include <stdint.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <optional>
 #include <unordered_set>
 #include <unordered_map>
+#include <deque>
 #include <filesystem>
 
 
@@ -209,23 +211,24 @@ int main()
     std::cout << "fetching bot token..." << std::endl;
     TwitchApi twitch_api (auth, bot_nickname);
 
-    std::cout << "Fetching channel contexts." << std::endl;
-    for (const std::string& channel : channels) {
-        channels_contexts.try_emplace(channel);
-    }
-    Json::Value streams = twitch_api.get_streams(channels);
-    for (auto stream : streams) {
-        channels_contexts[stream["user_login"].asString()].online = stream["type"].asString() == "live";
-    }
-    std::cout << "Loading commands for; ";
+    std::cout << "Loading commands & contexts for; ";
+    std::deque<LuaTwitchApi::LuaTwitchApiData> commands_data;
     for (const std::string& channel : channels) {
         std::cout << channel << " " << std::flush;
+        ChannelContext& channel_context = channels_contexts.try_emplace(channel).first->second;
         const std::string commands_path = "commands/"+channel+".txt";
         struct stat buffer;
         if (stat(commands_path.c_str(), &buffer) != 0) {continue;}  // TODO only works for linux!
         Commands& commands = channels_commands.try_emplace(channel, commands_path).first->second;
-        commands.add_lib("twitch_api", &twitch_api, LuaTwitchApi::functions, LuaTwitchApi::func_count);
+        commands_data.emplace_back(twitch_api, channel_context, twitch_api.get_id(channel, true));
+        commands.add_lib("twitch_api", &commands_data.back(), LuaTwitchApi::functions, LuaTwitchApi::func_count);
     } std::cout << std::endl;
+
+    std::cout << "Fetching channel contexts." << std::endl;
+    Json::Value streams = twitch_api.get_streams(channels);
+    for (auto stream : streams) {
+        channels_contexts[stream["user_login"].asString()].online = stream["type"].asString() == "live";
+    }
 
     const std::string bot_id = twitch_api.get_id(bot_nickname, true);
     bool bot_token_exists = false;

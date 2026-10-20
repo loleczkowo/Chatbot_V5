@@ -60,8 +60,9 @@ Example:
 ### API
 There are linked API's.
 **Twitch API**
-`twitch_api.set_category(string room_id, string category_name)` - "" if succeded, else "Category id not found"
-`twitch_api.set_title(string room_id, string title)` - ""
+`twitch_api.set_category(string category_name)` - `""` if succeded, else `"Category id not found"`
+`twitch_api.set_title(string title)` - ""
+`twitch_api.run_ads(int length)` - `bool` or `"run_ads; Expected \"length\" to be an int"`
 
 ## LUA chat message info
 If you need the message after the command (For an example `hello world` from `!say hello world`) use `CUT_MSG`
